@@ -11,10 +11,10 @@ import {
   Users, Calculator, FileText, Plus, Trash2, 
   Printer, Calendar, ArrowLeft, Table, ArrowRight, Pencil, 
   Receipt, AlertTriangle, CheckCircle, LogOut, Lock, Settings, Building2,
-  History, Eye
+  History, Eye, Save, DollarSign, Send, Copy, DownloadCloud
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO FIXA DO FIREBASE (SUA CHAVE) ---
+// --- CONFIGURAÇÃO FIXA DO FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyBXOGHkqIIqZvKzBKGMDHvVUU0kqTNGgz4",
   authDomain: "rh-fast-44bce.firebaseapp.com",
@@ -29,6 +29,30 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// --- DADOS PARA IMPORTAÇÃO (BACKUP) ---
+const EMPLOYEES_FROM_SHEET = [
+  {name: "DHAMERSON RENAN GOMES", role: "ANALISTA DE ECOMMERCE", baseValue: 171.72, pix: "45990762879", workHoursPerDay: 8},
+  {name: "OLAIR FERREIRA CINTRA", role: "PESPONTADOR", baseValue: 106.70, pix: "16991194786", workHoursPerDay: 8},
+  {name: "IRACI CORREIA", role: "CORTADOR", baseValue: 150.00, pix: "16991801098", workHoursPerDay: 8},
+  {name: "APARECIDO", role: "CORTADOR", baseValue: 150.00, pix: "", workHoursPerDay: 8},
+  {name: "GUSTAVO GABRIEL OLIVEIRA", role: "AUXILIAR DE PRODUÇÃO", baseValue: 100.00, pix: "16992936523", workHoursPerDay: 8},
+  {name: "GUILHERME OLIVEIRA MATOS", role: "AUXILIAR ECOMMERCE", baseValue: 62.66, pix: "581.846.488.12 - INTER", workHoursPerDay: 8},
+  {name: "DAVI GABRIEL DE FREITAS", role: "APONTADOR DE SOLA", baseValue: 166.19, pix: "44075320847", workHoursPerDay: 8},
+  {name: "ANTONIO EXPEDITO", role: "MONTADOR", baseValue: 133.00, pix: "5721232803", workHoursPerDay: 8},
+  {name: "JARBAS JOSE BATISTA", role: "CORTADOR", baseValue: 150.00, pix: "16994238977", workHoursPerDay: 8},
+  {name: "GUILERME MORETTI SILVA", role: "AUXILIAR", baseValue: 100.00, pix: "16992672495", workHoursPerDay: 8},
+  {name: "FERNADO ALVES RANIELI", role: "FECHADOR DE LADO", baseValue: 133.33, pix: "27392484826", workHoursPerDay: 8},
+  {name: "JULIO CESAR MOLINA", role: "AUXILIAR DE EOMERCE", baseValue: 100.00, pix: "39111177870", workHoursPerDay: 8},
+  {name: "DANILO FELICIANO DE OLIVEIRA", role: "REVISOR", baseValue: 122.00, pix: "31475854846", workHoursPerDay: 8},
+  {name: "TIAGO GARCIA DAS NEVES", role: "MOLINEIRO", baseValue: 161.00, pix: "265.074.938.56 - MP", workHoursPerDay: 8},
+  {name: "MARCO ANTONIO OLIVEIRA INACIO", role: "AUXILIAR", baseValue: 114.28, pix: "16997109877", workHoursPerDay: 8},
+  {name: "ADRIANO CESAR GABRIEL", role: "ACABADOR", baseValue: 152.00, pix: "16981627406", workHoursPerDay: 8},
+  {name: "DIEGO MAZZALI", role: "APONTADOR DE SOLA", baseValue: 142.00, pix: "29677051873", workHoursPerDay: 8},
+  {name: "ALEX BENTO", role: "GERENTE", baseValue: 238.00, pix: "", workHoursPerDay: 8},
+  {name: "EDUARDO HENRIQUE SILVA", role: "AUXILIAR", baseValue: 123.80, pix: "EDUARDOHEYTOR19@GMAIL.COM", workHoursPerDay: 8},
+  {name: "SERGIO MESSIAS", role: "PLANEJAMENTO", baseValue: 164.00, pix: "13859745832", workHoursPerDay: 8}
+];
+
 // --- UI COMPONENTS ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 transition-all duration-300 hover:shadow-xl ${onClick ? 'cursor-pointer hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
@@ -41,6 +65,7 @@ const Button = ({ children, variant = 'primary', className = "", ...props }) => 
     primary: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/30",
     secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50",
     success: "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 shadow-emerald-500/30",
+    warning: "bg-gradient-to-r from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700 shadow-orange-500/30",
   };
   return (
     <button className={`${variants[variant]} px-4 py-2 rounded-xl font-bold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`} {...props}>
@@ -110,8 +135,10 @@ export default function App() {
   const [employees, setEmployees] = useState([]);
   const [advances, setAdvances] = useState([]); 
   const [companyData, setCompanyData] = useState(null);
-  const [reportData, setReportData] = useState(null); 
   const [loadingAuth, setLoadingAuth] = useState(true);
+  
+  // ESTADO PARA EDIÇÃO DE PAGAMENTO (MEMÓRIA)
+  const [editingPayroll, setEditingPayroll] = useState(null); 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -129,17 +156,54 @@ export default function App() {
     return () => { unsubEmp(); unsubAdv(); unsubSettings(); };
   }, [user]);
 
-  const handleViewReport = (data) => { setReportData(data); setView('report_general'); };
+  // Função chamada quando queremos EDITAR uma folha (vinda do histórico ou do "Voltar")
+  const handleEditPayroll = (payrollData) => {
+    setEditingPayroll(payrollData);
+    setView('payroll');
+  };
+
+  // Função chamada para ver o relatório (apenas visualização)
+  const handleViewReport = (payrollData) => {
+    setEditingPayroll(payrollData);
+    setView('report_general');
+  };
+
+  // Função para iniciar um NOVO cálculo zerado
+  const handleNewCalculation = () => {
+    setEditingPayroll(null);
+    setView('payroll');
+  };
 
   const renderView = () => {
     switch(view) {
       case 'employees': return <EmployeeManager employees={employees} userId={user?.uid} />;
-      case 'payroll': return <PayrollCalculator employees={employees} advances={advances} userId={user?.uid} onViewReport={handleViewReport} companyData={companyData} />;
-      case 'history': return <PayrollHistory userId={user?.uid} onViewReport={handleViewReport} />;
-      case 'report_general': return <GeneralReportView data={reportData} onViewHolerites={() => setView('print_holerites')} onBack={() => setView('history')} companyData={companyData} />;
-      case 'print_holerites': return <HoleriteView data={reportData} onBack={() => setView('report_general')} companyData={companyData} />;
+      
+      case 'payroll': return <PayrollCalculator 
+        employees={employees} 
+        advances={advances} 
+        userId={user?.uid} 
+        initialData={editingPayroll} 
+        onGenerate={handleViewReport} 
+        companyData={companyData} 
+      />;
+      
+      case 'history': return <PayrollHistory userId={user?.uid} onViewReport={handleViewReport} onEdit={handleEditPayroll} />;
+      
+      case 'report_general': return <GeneralReportView 
+        data={editingPayroll} 
+        onViewHolerites={() => setView('print_holerites')} 
+        onBack={() => setView('payroll')} 
+        companyData={companyData} 
+      />;
+      
+      case 'print_holerites': return <HoleriteView 
+        data={editingPayroll} 
+        onBack={() => setView('report_general')} 
+        companyData={companyData} 
+      />;
+      
       case 'settings': return <CompanySettings userId={user?.uid} currentData={companyData} onSave={() => setView('dashboard')} />;
-      default: return <Dashboard changeView={setView} employees={employees} userId={user?.uid} />;
+      default: return <Dashboard changeView={setView} onNewCalc={handleNewCalculation} employees={employees} userId={user?.uid} />;
     }
   };
 
@@ -160,11 +224,10 @@ export default function App() {
             </div>
           </div>
           <nav className="hidden md:flex gap-1 bg-white/10 p-1 rounded-xl backdrop-blur-md border border-white/10">
-            {['dashboard', 'employees', 'payroll', 'history'].map((v) => (
-              <button key={v} onClick={() => setView(v)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === v ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>
-                {v === 'dashboard' ? 'Início' : v === 'employees' ? 'Equipe' : v === 'payroll' ? 'Calcular' : 'Histórico'}
-              </button>
-            ))}
+            <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'dashboard' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Início</button>
+            <button onClick={() => setView('employees')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'employees' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Equipe</button>
+            <button onClick={handleNewCalculation} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'payroll' && !editingPayroll?.id ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Calcular</button>
+            <button onClick={() => setView('history')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'history' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Histórico</button>
           </nav>
           <div className="flex items-center gap-2">
             <button onClick={() => setView('settings')} className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition"><Settings size={20}/></button>
@@ -173,7 +236,7 @@ export default function App() {
         </div>
         <div className="md:hidden flex justify-center mt-4 gap-4 text-sm font-bold border-t border-white/10 pt-2">
            <button onClick={() => setView('dashboard')} className={view==='dashboard' ? 'text-white' : 'text-blue-300'}>Início</button>
-           <button onClick={() => setView('payroll')} className={view==='payroll' ? 'text-white' : 'text-blue-300'}>Calcular</button>
+           <button onClick={handleNewCalculation} className={view==='payroll' ? 'text-white' : 'text-blue-300'}>Calcular</button>
            <button onClick={() => setView('history')} className={view==='history' ? 'text-white' : 'text-blue-300'}>Histórico</button>
         </div>
       </header>
@@ -183,7 +246,7 @@ export default function App() {
 }
 
 // --- DASHBOARD ---
-function Dashboard({ changeView, employees, userId }) {
+function Dashboard({ changeView, onNewCalc, employees, userId }) {
   const [isValeOpen, setIsValeOpen] = useState(false);
   const [valeData, setValeData] = useState({ employeeId: '', value: '', description: '', targetMonth: new Date().toISOString().slice(0, 7) });
 
@@ -199,7 +262,7 @@ function Dashboard({ changeView, employees, userId }) {
   return (
     <div className="space-y-8 animate-slide-up">
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-        <div><h2 className="text-3xl font-bold text-slate-800">Visão Geral</h2><p className="text-slate-500 mt-1">Bem-vindo ao painel de controle.</p></div>
+        <div><h2 className="text-3xl font-bold text-slate-800">Visão Geral</h2><p className="text-slate-500 mt-1">Bem-vindo ao painel de controle da sua empresa.</p></div>
         <div className="text-right hidden md:block"><p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data de Hoje</p><p className="text-xl font-bold text-slate-700">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -217,22 +280,21 @@ function Dashboard({ changeView, employees, userId }) {
         <Card onClick={() => changeView('employees')} className="group">
           <div className="flex items-center gap-4"><div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-sm">Adicionar, editar ou remover colaboradores.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition"><ArrowRight size={20}/></div></div>
         </Card>
-        <Card onClick={() => changeView('payroll')} className="group">
-          <div className="flex items-center gap-4"><div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha e salvar histórico.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition"><ArrowRight size={20}/></div></div>
+        <Card onClick={onNewCalc} className="group">
+          <div className="flex items-center gap-4"><div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha, horas extras e imprimir recibos.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition"><ArrowRight size={20}/></div></div>
         </Card>
       </div>
-      {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar</Button></div></form></div></div> )}
+      {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento quinzenal"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar Lançamento</Button></div></form></div></div> )}
     </div>
   );
 }
 
 // --- HISTÓRICO DE PAGAMENTOS ---
-function PayrollHistory({ userId, onViewReport }) {
+function PayrollHistory({ userId, onViewReport, onEdit }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Busca as folhas de pagamento salvas, ordenadas da mais recente para a antiga
     const q = query(collection(db, 'users', userId, 'payrolls'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -242,9 +304,7 @@ function PayrollHistory({ userId, onViewReport }) {
   }, [userId]);
 
   const handleDelete = async (id) => {
-    if(confirm("Tem certeza? Isso apagará este histórico para sempre.")) {
-      await deleteDoc(doc(db, 'users', userId, 'payrolls', id));
-    }
+    if(confirm("Tem certeza? Isso apagará este histórico para sempre.")) await deleteDoc(doc(db, 'users', userId, 'payrolls', id));
   };
 
   const formatDate = (dateString) => dateString ? dateString.split('-').reverse().join('/') : '';
@@ -255,11 +315,9 @@ function PayrollHistory({ userId, onViewReport }) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><History className="text-blue-600"/> Histórico de Pagamentos</h2>
       </div>
-
       {loading ? <div className="text-center py-10 text-slate-500">Carregando histórico...</div> : (
         <div className="grid gap-4">
           {history.length === 0 && <div className="text-center py-10 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">Nenhum pagamento salvo ainda.</div>}
-          
           {history.map(item => (
             <Card key={item.id} className="flex flex-col md:flex-row items-center justify-between gap-4 group hover:border-blue-200">
               <div className="flex items-center gap-4 w-full md:w-auto">
@@ -272,14 +330,14 @@ function PayrollHistory({ userId, onViewReport }) {
                   </div>
                 </div>
               </div>
-              
               <div className="flex items-center gap-6 w-full md:w-auto justify-between">
                 <div className="text-right">
                   <p className="text-xs text-slate-400 font-bold uppercase">Total Pago</p>
                   <p className="text-xl font-bold text-slate-700">{formatMoney(item.total)}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => onViewReport(item)} className="px-4"><Eye size={18}/> Ver Detalhes</Button>
+                  <Button variant="secondary" onClick={() => onViewReport(item)} className="px-4"><Eye size={18}/> Ver</Button>
+                  <Button variant="primary" onClick={() => onEdit(item)} className="px-4"><Pencil size={18}/> Editar</Button>
                   <button onClick={() => handleDelete(item.id)} className="p-2 text-slate-300 hover:text-red-500 transition"><Trash2 size={18}/></button>
                 </div>
               </div>
@@ -291,11 +349,32 @@ function PayrollHistory({ userId, onViewReport }) {
   );
 }
 
-// --- CALCULADORA (AGORA SALVA NO BANCO) ---
-function PayrollCalculator({ employees, advances, userId, onViewReport, companyData }) {
+// --- CALCULADORA ---
+function PayrollCalculator({ employees, advances, userId, initialData, onGenerate, companyData }) {
   const [inputs, setInputs] = useState({});
   const [dates, setDates] = useState({ start: '', end: '' });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      setDates({ start: initialData.startDate, end: initialData.endDate });
+      const restoredInputs = {};
+      initialData.items.forEach(item => {
+        restoredInputs[item.id] = {
+          days: item.daysWorked,
+          discount: item.discount,
+          bonus: item.bonus,
+          overtime: item.overtime,
+          overtimeHours: item.overtimeHours,
+          advancesIncluded: item.advancesIncluded || []
+        };
+      });
+      setInputs(restoredInputs);
+    } else {
+      setInputs({});
+      setDates({ start: '', end: '' });
+    }
+  }, [initialData]);
 
   const handleInputChange = (id, field, value) => setInputs(p => ({ ...p, [id]: { ...p[id], [field]: parseFloat(value) || 0 } }));
   
@@ -328,35 +407,20 @@ function PayrollCalculator({ employees, advances, userId, onViewReport, companyD
   const saveAndGenerate = async () => {
     if (!dates.start || !dates.end) return alert("Selecione o período.");
     if(!companyData?.name) alert("Atenção: Configure a empresa antes!");
-    
     const items = employees.map(e => ({ ...e, ...getVals(e), dailyRate: e.type === 'mensalista' ? (e.baseValue/30) : e.baseValue })).filter(i => i.days > 0 || i.netTotal > 0);
-    
-    if (items.length === 0) return alert("Preencha os dados de pelo menos um funcionário.");
+    if (items.length === 0) return alert("Preencha os dados.");
 
     setSaving(true);
     try {
-      // 1. Monta o objeto da folha
-      const payrollData = {
-        startDate: dates.start,
-        endDate: dates.end,
-        total: totalPayroll,
-        items: items,
-        createdAt: new Date(),
-        createdBy: userId
-      };
-
-      // 2. Salva no Firestore (Histórico)
-      await addDoc(collection(db, 'users', userId, 'payrolls'), payrollData);
-
-      // 3. Atualiza status dos vales para "deducted" (descontado) se tiver
-      // (Implementação futura para automatizar baixa de vale)
-
-      // 4. Gera visualização
-      onViewReport(payrollData);
-
-    } catch (error) {
-      alert("Erro ao salvar folha: " + error.message);
-    }
+      const payrollData = { startDate: dates.start, endDate: dates.end, total: totalPayroll, items: items, updatedAt: new Date() };
+      if (initialData && initialData.id) {
+        await updateDoc(doc(db, 'users', userId, 'payrolls', initialData.id), payrollData);
+        onGenerate({ ...payrollData, id: initialData.id, createdAt: initialData.createdAt });
+      } else {
+        const docRef = await addDoc(collection(db, 'users', userId, 'payrolls'), { ...payrollData, createdAt: new Date(), createdBy: userId });
+        onGenerate({ ...payrollData, id: docRef.id });
+      }
+    } catch (error) { alert("Erro ao salvar folha: " + error.message); }
     setSaving(false);
   };
 
@@ -366,8 +430,8 @@ function PayrollCalculator({ employees, advances, userId, onViewReport, companyD
     <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
       <Card>
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8 border-b border-slate-100 pb-6">
-          <div><h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Calculator className="text-blue-600"/> Calcular Folha</h2><p className="text-slate-500 text-sm mt-1">Defina o período e preencha os dados variáveis.</p></div>
-          <div className="flex gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200"><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Início</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" onChange={e => setDates({...dates, start: e.target.value})}/></div><div className="w-px bg-slate-300"></div><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Fim</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" onChange={e => setDates({...dates, end: e.target.value})}/></div></div>
+          <div><h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Calculator className="text-blue-600"/> {initialData ? 'Editar Folha Salva' : 'Calcular Folha'}</h2><p className="text-slate-500 text-sm mt-1">{initialData ? 'Alterando histórico existente.' : 'Defina o período e preencha os dados.'}</p></div>
+          <div className="flex gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200"><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Início</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" value={dates.start} onChange={e => setDates({...dates, start: e.target.value})}/></div><div className="w-px bg-slate-300"></div><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Fim</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" value={dates.end} onChange={e => setDates({...dates, end: e.target.value})}/></div></div>
         </div>
         <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full text-sm text-left">
@@ -378,10 +442,10 @@ function PayrollCalculator({ employees, advances, userId, onViewReport, companyD
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4"><div className="font-bold text-slate-700">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>{p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-bold hover:bg-orange-200 transition"><AlertTriangle size={12}/> Vale: {money(p.total)}</div>} {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold"><CheckCircle size={12}/> Descontado</div>}</td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.days || ''} onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.overtimeHours || ''} onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td>
                     <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-right font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none" value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-emerald-200 bg-emerald-50/50 rounded-lg text-right font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border border-emerald-200 bg-emerald-50/50 rounded-lg text-right font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none" value={inputs[emp.id]?.bonus || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
                     <td className="p-4"><input type="number" className="w-full p-2 border border-red-200 bg-red-50/50 rounded-lg text-right font-bold text-red-600 focus:ring-2 focus:ring-red-500 outline-none" value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/></td>
                     <td className="p-4 text-right bg-blue-50/30"><span className="font-mono font-bold text-lg text-slate-800">{money(v.netTotal)}</span></td>
                   </tr>
@@ -391,12 +455,9 @@ function PayrollCalculator({ employees, advances, userId, onViewReport, companyD
           </table>
         </div>
         <div className="mt-6 flex justify-end items-center gap-4">
-          <div className="text-right mr-4">
-            <p className="text-xs text-slate-400 uppercase font-bold">Total Previsto</p>
-            <p className="text-2xl font-bold text-slate-800">{money(totalPayroll)}</p>
-          </div>
+          <div className="text-right mr-4"><p className="text-xs text-slate-400 uppercase font-bold">Total Previsto</p><p className="text-2xl font-bold text-slate-800">{money(totalPayroll)}</p></div>
           <Button onClick={saveAndGenerate} disabled={saving} className="shadow-xl px-8 py-3 text-lg">
-            {saving ? 'Salvando...' : <><Printer size={20}/> Salvar e Gerar Documentos</>}
+            {saving ? 'Salvando...' : initialData ? <><Save size={20}/> Atualizar Pagamento</> : <><Printer size={20}/> Salvar e Gerar</>}
           </Button>
         </div>
       </Card>
@@ -407,9 +468,31 @@ function PayrollCalculator({ employees, advances, userId, onViewReport, companyD
 // --- CONFIGURAÇÕES E IMPORTADOR ---
 function CompanySettings({ userId, currentData, onSave }) {
   const [formData, setFormData] = useState({ name: '', cnpj: '', address: '', phone: '', logoUrl: '' });
+  const [importing, setImporting] = useState(false);
+
   useEffect(() => { if (currentData) setFormData(currentData); }, [currentData]);
-  const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
   
+  const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
+
+  const handleImportEmployees = async () => {
+    if(!confirm("Deseja importar os 20 funcionários da planilha para sua base?")) return;
+    setImporting(true);
+    try {
+      const batchPromises = EMPLOYEES_FROM_SHEET.map(emp => 
+        addDoc(collection(db, 'users', userId, 'employees'), {
+          ...emp,
+          type: 'diarista', 
+          createdAt: new Date()
+        })
+      );
+      await Promise.all(batchPromises);
+      alert("Sucesso! 20 Funcionários importados.");
+    } catch (error) {
+      alert("Erro na importação: " + error.message);
+    }
+    setImporting(false);
+  };
+
   return (
     <div className="max-w-2xl mx-auto animate-fade-in">
       <Card>
@@ -418,6 +501,14 @@ function CompanySettings({ userId, currentData, onSave }) {
           <div><label className="block text-sm font-bold mb-1">Nome da Empresa</label><input type="text" required className="w-full p-3 border rounded bg-slate-50" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Padaria do João"/></div>
           <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">CNPJ</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1">Telefone</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div></div>
           <div><label className="block text-sm font-bold mb-1">URL Logo</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})}/></div>
+          
+          <div className="pt-6 mt-6 border-t border-slate-100">
+            <h3 className="font-bold text-slate-500 mb-3 uppercase text-xs">Ferramentas Avançadas</h3>
+            <button type="button" onClick={handleImportEmployees} disabled={importing} className="w-full border-2 border-dashed border-emerald-300 bg-emerald-50 text-emerald-700 font-bold py-3 rounded-xl hover:bg-emerald-100 transition flex items-center justify-center gap-2">
+              {importing ? 'Importando...' : <><DownloadCloud size={20}/> Importar 20 Funcionários da Planilha</>}
+            </button>
+          </div>
+
           <div className="pt-4 flex gap-2 justify-end"><Button variant="secondary" type="button" onClick={onSave}>Voltar</Button><Button type="submit">Salvar</Button></div>
         </form>
       </Card>
@@ -474,7 +565,7 @@ function GeneralReportView({ data, onViewHolerites, onBack, companyData }) {
 
   return (
     <div className="max-w-full mx-auto pb-20 animate-fade-in">
-      <div className="bg-white p-4 rounded-xl shadow-lg mb-6 print:hidden flex justify-between items-center border border-slate-200"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button><div className="flex gap-3"><Button variant="secondary" onClick={() => window.print()}><Printer size={18}/> Imprimir Relatório</Button><Button onClick={onViewHolerites}>Ver Holerites <ArrowRight size={18}/></Button></div></div>
+      <div className="bg-white p-4 rounded-xl shadow-lg mb-6 print:hidden flex justify-between items-center border border-slate-200"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar para Edição</button><div className="flex gap-3"><Button variant="secondary" onClick={() => window.print()}><Printer size={18}/> Imprimir Relatório</Button><Button onClick={onViewHolerites}>Ver Holerites <ArrowRight size={18}/></Button></div></div>
       <div className="bg-white print:w-full shadow-2xl overflow-hidden rounded-lg">
         <div className="bg-slate-900 text-white p-6 flex justify-between items-end"><div><h1 className="text-2xl font-bold uppercase tracking-wider">{companyData?.name}</h1><p className="text-slate-400 text-sm mt-1">Relatório Gerencial de Pagamentos</p></div><div className="text-right"><p className="text-slate-400 text-sm uppercase font-bold tracking-wider">Período</p><p className="text-xl font-bold">{date(data.startDate)} - {date(data.endDate)}</p></div></div>
         <table className="w-full text-sm font-sans">
