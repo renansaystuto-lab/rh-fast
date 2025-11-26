@@ -11,7 +11,7 @@ import {
   Users, Calculator, FileText, Plus, Trash2, 
   Printer, Calendar, ArrowLeft, Table, ArrowRight, Pencil, 
   Receipt, AlertTriangle, CheckCircle, LogOut, Lock, Settings, Building2,
-  History, Eye, Save, DollarSign, Send, Copy, DownloadCloud
+  History, Eye, Save, DollarSign, Send, Copy, DownloadCloud, Menu, X
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO FIXA DO FIREBASE ---
@@ -55,7 +55,7 @@ const EMPLOYEES_FROM_SHEET = [
 
 // --- UI COMPONENTS ---
 const Card = ({ children, className = "", onClick }) => (
-  <div onClick={onClick} className={`bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 transition-all duration-300 hover:shadow-xl ${onClick ? 'cursor-pointer hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
+  <div onClick={onClick} className={`bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-4 md:p-6 transition-all duration-300 hover:shadow-xl ${onClick ? 'cursor-pointer hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
     {children}
   </div>
 );
@@ -68,7 +68,7 @@ const Button = ({ children, variant = 'primary', className = "", ...props }) => 
     warning: "bg-gradient-to-r from-orange-400 to-orange-600 text-white hover:from-orange-500 hover:to-orange-700 shadow-orange-500/30",
   };
   return (
-    <button className={`${variants[variant]} px-4 py-2 rounded-xl font-bold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`} {...props}>
+    <button className={`${variants[variant]} px-4 py-3 md:py-2 rounded-xl font-bold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto ${className}`} {...props}>
       {children}
     </button>
   );
@@ -136,9 +136,8 @@ export default function App() {
   const [advances, setAdvances] = useState([]); 
   const [companyData, setCompanyData] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
-  
-  // ESTADO PARA EDIÇÃO DE PAGAMENTO (MEMÓRIA)
   const [editingPayroll, setEditingPayroll] = useState(null); 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -156,54 +155,21 @@ export default function App() {
     return () => { unsubEmp(); unsubAdv(); unsubSettings(); };
   }, [user]);
 
-  // Função chamada quando queremos EDITAR uma folha (vinda do histórico ou do "Voltar")
-  const handleEditPayroll = (payrollData) => {
-    setEditingPayroll(payrollData);
-    setView('payroll');
-  };
-
-  // Função chamada para ver o relatório (apenas visualização)
-  const handleViewReport = (payrollData) => {
-    setEditingPayroll(payrollData);
-    setView('report_general');
-  };
-
-  // Função para iniciar um NOVO cálculo zerado
-  const handleNewCalculation = () => {
-    setEditingPayroll(null);
-    setView('payroll');
-  };
+  const handleEditPayroll = (payrollData) => { setEditingPayroll(payrollData); setView('payroll'); setMobileMenuOpen(false); };
+  const handleViewReport = (payrollData) => { setEditingPayroll(payrollData); setView('report_general'); setMobileMenuOpen(false); };
+  const handleNewCalculation = () => { setEditingPayroll(null); setView('payroll'); setMobileMenuOpen(false); };
+  
+  const navigate = (v) => { setView(v); setMobileMenuOpen(false); };
 
   const renderView = () => {
     switch(view) {
       case 'employees': return <EmployeeManager employees={employees} userId={user?.uid} />;
-      
-      case 'payroll': return <PayrollCalculator 
-        employees={employees} 
-        advances={advances} 
-        userId={user?.uid} 
-        initialData={editingPayroll} 
-        onGenerate={handleViewReport} 
-        companyData={companyData} 
-      />;
-      
+      case 'payroll': return <PayrollCalculator employees={employees} advances={advances} userId={user?.uid} initialData={editingPayroll} onGenerate={handleViewReport} companyData={companyData} />;
       case 'history': return <PayrollHistory userId={user?.uid} onViewReport={handleViewReport} onEdit={handleEditPayroll} />;
-      
-      case 'report_general': return <GeneralReportView 
-        data={editingPayroll} 
-        onViewHolerites={() => setView('print_holerites')} 
-        onBack={() => setView('payroll')} 
-        companyData={companyData} 
-      />;
-      
-      case 'print_holerites': return <HoleriteView 
-        data={editingPayroll} 
-        onBack={() => setView('report_general')} 
-        companyData={companyData} 
-      />;
-      
+      case 'report_general': return <GeneralReportView data={editingPayroll} onViewHolerites={() => setView('print_holerites')} onBack={() => setView('payroll')} companyData={companyData} />;
+      case 'print_holerites': return <HoleriteView data={editingPayroll} onBack={() => setView('report_general')} companyData={companyData} />;
       case 'settings': return <CompanySettings userId={user?.uid} currentData={companyData} onSave={() => setView('dashboard')} />;
-      default: return <Dashboard changeView={setView} onNewCalc={handleNewCalculation} employees={employees} userId={user?.uid} />;
+      default: return <Dashboard changeView={navigate} onNewCalc={handleNewCalculation} employees={employees} userId={user?.uid} />;
     }
   };
 
@@ -212,33 +178,49 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
-      <header className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 shadow-xl z-10 print:hidden">
+      <header className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 shadow-xl z-10 sticky top-0">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm border border-white/10">
               {companyData?.logoUrl ? <img src={companyData.logoUrl} alt="Logo" className="h-8 w-8 object-contain"/> : <FileText className="h-8 w-8" />}
             </div>
             <div>
-              <h1 className="text-lg font-bold leading-tight">{companyData?.name || 'RH Fácil'}</h1>
-              <p className="text-[10px] text-blue-200 font-medium tracking-wider uppercase">Sistema de Gestão</p>
+              <h1 className="text-lg font-bold leading-tight truncate max-w-[150px] md:max-w-none">{companyData?.name || 'RH Fácil'}</h1>
+              <p className="text-[10px] text-blue-200 font-medium tracking-wider uppercase hidden md:block">Sistema de Gestão</p>
             </div>
           </div>
+          
+          {/* Desktop Nav */}
           <nav className="hidden md:flex gap-1 bg-white/10 p-1 rounded-xl backdrop-blur-md border border-white/10">
-            <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'dashboard' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Início</button>
-            <button onClick={() => setView('employees')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'employees' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Equipe</button>
+            <button onClick={() => navigate('dashboard')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'dashboard' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Início</button>
+            <button onClick={() => navigate('employees')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'employees' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Equipe</button>
             <button onClick={handleNewCalculation} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'payroll' && !editingPayroll?.id ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Calcular</button>
-            <button onClick={() => setView('history')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'history' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Histórico</button>
+            <button onClick={() => navigate('history')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === 'history' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>Histórico</button>
           </nav>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setView('settings')} className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition"><Settings size={20}/></button>
+          
+          <div className="hidden md:flex items-center gap-2">
+            <button onClick={() => navigate('settings')} className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition"><Settings size={20}/></button>
             <button onClick={() => signOut(auth)} className="p-2 text-pink-300 hover:text-white hover:bg-red-500/20 rounded-lg transition"><LogOut size={20}/></button>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 text-white">
+            {mobileMenuOpen ? <X size={24}/> : <Menu size={24}/>}
+          </button>
         </div>
-        <div className="md:hidden flex justify-center mt-4 gap-4 text-sm font-bold border-t border-white/10 pt-2">
-           <button onClick={() => setView('dashboard')} className={view==='dashboard' ? 'text-white' : 'text-blue-300'}>Início</button>
-           <button onClick={handleNewCalculation} className={view==='payroll' ? 'text-white' : 'text-blue-300'}>Calcular</button>
-           <button onClick={() => setView('history')} className={view==='history' ? 'text-white' : 'text-blue-300'}>Histórico</button>
-        </div>
+
+        {/* Mobile Menu Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden absolute top-full left-0 w-full bg-blue-900 shadow-2xl border-t border-white/10 p-4 flex flex-col gap-2 animate-slide-down">
+             <button onClick={() => navigate('dashboard')} className={`p-3 rounded-lg text-left font-medium ${view === 'dashboard' ? 'bg-white text-blue-900' : 'text-white hover:bg-white/10'}`}>Início</button>
+             <button onClick={() => navigate('employees')} className={`p-3 rounded-lg text-left font-medium ${view === 'employees' ? 'bg-white text-blue-900' : 'text-white hover:bg-white/10'}`}>Equipe</button>
+             <button onClick={handleNewCalculation} className={`p-3 rounded-lg text-left font-medium ${view === 'payroll' ? 'bg-white text-blue-900' : 'text-white hover:bg-white/10'}`}>Calcular Folha</button>
+             <button onClick={() => navigate('history')} className={`p-3 rounded-lg text-left font-medium ${view === 'history' ? 'bg-white text-blue-900' : 'text-white hover:bg-white/10'}`}>Histórico</button>
+             <div className="h-px bg-white/10 my-2"></div>
+             <button onClick={() => navigate('settings')} className="p-3 rounded-lg text-left font-medium text-blue-200 hover:bg-white/10 flex items-center gap-2"><Settings size={18}/> Configurações</button>
+             <button onClick={() => signOut(auth)} className="p-3 rounded-lg text-left font-medium text-pink-300 hover:bg-white/10 flex items-center gap-2"><LogOut size={18}/> Sair</button>
+          </div>
+        )}
       </header>
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6">{renderView()}</main>
     </div>
@@ -262,34 +244,34 @@ function Dashboard({ changeView, onNewCalc, employees, userId }) {
   return (
     <div className="space-y-8 animate-slide-up">
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-        <div><h2 className="text-3xl font-bold text-slate-800">Visão Geral</h2><p className="text-slate-500 mt-1">Bem-vindo ao painel de controle da sua empresa.</p></div>
+        <div><h2 className="text-2xl md:text-3xl font-bold text-slate-800">Visão Geral</h2><p className="text-slate-500 mt-1">Bem-vindo ao painel de controle.</p></div>
         <div className="text-right hidden md:block"><p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data de Hoje</p><p className="text-xl font-bold text-slate-700">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none">
-          <div className="flex justify-between items-start"><div><p className="text-blue-100 text-sm font-medium mb-1">Funcionários Ativos</p><h3 className="text-4xl font-bold">{totalEmployees}</h3></div><div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div></div>
+          <div className="flex justify-between items-start"><div><p className="text-blue-100 text-sm font-medium mb-1">Funcionários</p><h3 className="text-4xl font-bold">{totalEmployees}</h3></div><div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div></div>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none">
-          <div className="flex justify-between items-start"><div><p className="text-emerald-100 text-sm font-medium mb-1">Folha Estimada</p><h3 className="text-4xl font-bold">R$ {totalPayrollEstimate.toLocaleString('pt-BR', {maximumFractionDigits:0})}</h3></div><div className="bg-white/20 p-2 rounded-lg"><DollarSign size={24}/></div></div>
+          <div className="flex justify-between items-start"><div><p className="text-emerald-100 text-sm font-medium mb-1">Estimativa Mensal</p><h3 className="text-3xl md:text-4xl font-bold">R$ {totalPayrollEstimate.toLocaleString('pt-BR', {maximumFractionDigits:0})}</h3></div><div className="bg-white/20 p-2 rounded-lg"><DollarSign size={24}/></div></div>
         </Card>
         <Card onClick={() => setIsValeOpen(true)} className="bg-gradient-to-br from-orange-400 to-pink-500 text-white border-none cursor-pointer group">
-          <div className="flex justify-between items-start"><div><p className="text-orange-100 text-sm font-medium mb-1">Ação Rápida</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Lançar Vale</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><Receipt size={24}/></div></div>
+          <div className="flex justify-between items-start"><div><p className="text-orange-100 text-sm font-medium mb-1">Atalho</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Lançar Vale</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><Receipt size={24}/></div></div>
         </Card>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <Card onClick={() => changeView('employees')} className="group">
-          <div className="flex items-center gap-4"><div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-sm">Adicionar, editar ou remover colaboradores.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition"><ArrowRight size={20}/></div></div>
+          <div className="flex items-center gap-4"><div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={32}/></div><div><h3 className="text-lg md:text-xl font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-sm">Adicionar, editar ou remover.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition"><ArrowRight size={20}/></div></div>
         </Card>
         <Card onClick={onNewCalc} className="group">
-          <div className="flex items-center gap-4"><div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha, horas extras e imprimir recibos.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition"><ArrowRight size={20}/></div></div>
+          <div className="flex items-center gap-4"><div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div><div><h3 className="text-lg md:text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha do mês.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition"><ArrowRight size={20}/></div></div>
         </Card>
       </div>
-      {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento quinzenal"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar Lançamento</Button></div></form></div></div> )}
+      {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento quinzenal"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar</Button></div></form></div></div> )}
     </div>
   );
 }
 
-// --- HISTÓRICO DE PAGAMENTOS ---
+// --- HISTÓRICO ---
 function PayrollHistory({ userId, onViewReport, onEdit }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -303,43 +285,28 @@ function PayrollHistory({ userId, onViewReport, onEdit }) {
     return () => unsubscribe();
   }, [userId]);
 
-  const handleDelete = async (id) => {
-    if(confirm("Tem certeza? Isso apagará este histórico para sempre.")) await deleteDoc(doc(db, 'users', userId, 'payrolls', id));
-  };
-
-  const formatDate = (dateString) => dateString ? dateString.split('-').reverse().join('/') : '';
-  const formatMoney = (val) => Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const handleDelete = async (id) => { if(confirm("Excluir histórico?")) await deleteDoc(doc(db, 'users', userId, 'payrolls', id)); };
+  const formatDate = (d) => d ? d.split('-').reverse().join('/') : '';
+  const formatMoney = (v) => Number(v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <div className="max-w-5xl mx-auto animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><History className="text-blue-600"/> Histórico de Pagamentos</h2>
-      </div>
-      {loading ? <div className="text-center py-10 text-slate-500">Carregando histórico...</div> : (
+      <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><History className="text-blue-600"/> Histórico</h2></div>
+      {loading ? <div className="text-center py-10 text-slate-500">Carregando...</div> : (
         <div className="grid gap-4">
-          {history.length === 0 && <div className="text-center py-10 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">Nenhum pagamento salvo ainda.</div>}
+          {history.length === 0 && <div className="text-center py-10 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">Nenhum pagamento salvo.</div>}
           {history.map(item => (
-            <Card key={item.id} className="flex flex-col md:flex-row items-center justify-between gap-4 group hover:border-blue-200">
+            <Card key={item.id} className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4 w-full md:w-auto">
-                <div className="bg-green-100 p-3 rounded-full text-green-600"><CheckCircle size={24}/></div>
+                <div className="bg-green-100 p-3 rounded-full text-green-600 hidden md:block"><CheckCircle size={24}/></div>
                 <div>
-                  <h4 className="font-bold text-lg text-slate-800">Pagamento de {new Date(item.createdAt?.seconds * 1000).toLocaleDateString('pt-BR', {month:'long', year:'numeric'})}</h4>
-                  <div className="flex gap-3 text-sm text-slate-500 mt-1">
-                    <span className="flex items-center gap-1"><Calendar size={14}/> Ref: {formatDate(item.startDate)} a {formatDate(item.endDate)}</span>
-                    <span className="flex items-center gap-1"><Users size={14}/> {item.items?.length || 0} func.</span>
-                  </div>
+                  <h4 className="font-bold text-lg text-slate-800">{new Date(item.createdAt?.seconds * 1000).toLocaleDateString('pt-BR', {month:'long', year:'numeric'})}</h4>
+                  <div className="flex flex-wrap gap-3 text-sm text-slate-500 mt-1"><span className="flex items-center gap-1"><Calendar size={14}/> {formatDate(item.startDate)} - {formatDate(item.endDate)}</span><span className="flex items-center gap-1"><Users size={14}/> {item.items?.length || 0}</span></div>
                 </div>
               </div>
-              <div className="flex items-center gap-6 w-full md:w-auto justify-between">
-                <div className="text-right">
-                  <p className="text-xs text-slate-400 font-bold uppercase">Total Pago</p>
-                  <p className="text-xl font-bold text-slate-700">{formatMoney(item.total)}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => onViewReport(item)} className="px-4"><Eye size={18}/> Ver</Button>
-                  <Button variant="primary" onClick={() => onEdit(item)} className="px-4"><Pencil size={18}/> Editar</Button>
-                  <button onClick={() => handleDelete(item.id)} className="p-2 text-slate-300 hover:text-red-500 transition"><Trash2 size={18}/></button>
-                </div>
+              <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                <div className="text-right"><p className="text-xs text-slate-400 font-bold uppercase">Total Pago</p><p className="text-xl font-bold text-slate-700">{formatMoney(item.total)}</p></div>
+                <div className="flex gap-2"><Button variant="secondary" onClick={() => onViewReport(item)} className="px-3"><Eye size={18}/></Button><Button variant="primary" onClick={() => onEdit(item)} className="px-3"><Pencil size={18}/></Button><button onClick={() => handleDelete(item.id)} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={18}/></button></div>
               </div>
             </Card>
           ))}
@@ -349,7 +316,7 @@ function PayrollHistory({ userId, onViewReport, onEdit }) {
   );
 }
 
-// --- CALCULADORA ---
+// --- CALCULADORA (MOBILE FIRST - LAYOUT DE CARTÕES) ---
 function PayrollCalculator({ employees, advances, userId, initialData, onGenerate, companyData }) {
   const [inputs, setInputs] = useState({});
   const [dates, setDates] = useState({ start: '', end: '' });
@@ -370,18 +337,14 @@ function PayrollCalculator({ employees, advances, userId, initialData, onGenerat
         };
       });
       setInputs(restoredInputs);
-    } else {
-      setInputs({});
-      setDates({ start: '', end: '' });
-    }
+    } else { setInputs({}); setDates({ start: '', end: '' }); }
   }, [initialData]);
 
   const handleInputChange = (id, field, value) => setInputs(p => ({ ...p, [id]: { ...p[id], [field]: parseFloat(value) || 0 } }));
   
   const handleOvertimeHoursChange = (id, hours, emp) => {
     const h = parseFloat(hours) || 0;
-    const daily = emp.type === 'mensalista' ? (emp.baseValue / 30) : emp.baseValue;
-    const hourly = daily / (emp.workHoursPerDay || 8);
+    const hourly = (emp.type === 'mensalista' ? (emp.baseValue / 30) : emp.baseValue) / (emp.workHoursPerDay || 8);
     setInputs(p => ({ ...p, [id]: { ...p[id], overtimeHours: h, overtime: parseFloat((hourly * h).toFixed(2)) } }));
   };
 
@@ -397,8 +360,7 @@ function PayrollCalculator({ employees, advances, userId, initialData, onGenerat
 
   const getVals = (emp) => {
     const d = inputs[emp.id] || {};
-    const dailyRate = emp.type === 'mensalista' ? (emp.baseValue/30) : emp.baseValue;
-    const gross = dailyRate * (d.days || 0);
+    const gross = (emp.type === 'mensalista' ? (emp.baseValue / 30) : emp.baseValue) * (d.days || 0);
     return { ...d, grossTotal: gross, netTotal: gross + (d.bonus||0) + (d.overtime||0) - (d.discount||0), advancesIncluded: d.advancesIncluded || [] };
   };
 
@@ -409,7 +371,6 @@ function PayrollCalculator({ employees, advances, userId, initialData, onGenerat
     if(!companyData?.name) alert("Atenção: Configure a empresa antes!");
     const items = employees.map(e => ({ ...e, ...getVals(e), dailyRate: e.type === 'mensalista' ? (e.baseValue/30) : e.baseValue })).filter(i => i.days > 0 || i.netTotal > 0);
     if (items.length === 0) return alert("Preencha os dados.");
-
     setSaving(true);
     try {
       const payrollData = { startDate: dates.start, endDate: dates.end, total: totalPayroll, items: items, updatedAt: new Date() };
@@ -420,47 +381,61 @@ function PayrollCalculator({ employees, advances, userId, initialData, onGenerat
         const docRef = await addDoc(collection(db, 'users', userId, 'payrolls'), { ...payrollData, createdAt: new Date(), createdBy: userId });
         onGenerate({ ...payrollData, id: docRef.id });
       }
-    } catch (error) { alert("Erro ao salvar folha: " + error.message); }
+    } catch (error) { alert("Erro: " + error.message); }
     setSaving(false);
   };
 
   const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
-      <Card>
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8 border-b border-slate-100 pb-6">
-          <div><h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Calculator className="text-blue-600"/> {initialData ? 'Editar Folha Salva' : 'Calcular Folha'}</h2><p className="text-slate-500 text-sm mt-1">{initialData ? 'Alterando histórico existente.' : 'Defina o período e preencha os dados.'}</p></div>
-          <div className="flex gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200"><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Início</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" value={dates.start} onChange={e => setDates({...dates, start: e.target.value})}/></div><div className="w-px bg-slate-300"></div><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Fim</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" value={dates.end} onChange={e => setDates({...dates, end: e.target.value})}/></div></div>
+    <div className="max-w-7xl mx-auto space-y-6 pb-24 animate-fade-in">
+      <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200 sticky top-20 z-10">
+        <h2 className="text-xl font-bold text-slate-700 mb-4 flex items-center gap-2"><Calculator className="text-blue-600"/> {initialData ? 'Editar Folha' : 'Calcular Folha'}</h2>
+        <div className="flex gap-4">
+          <div className="flex-1"><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Início</label><input type="date" className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold" value={dates.start} onChange={e => setDates({...dates, start: e.target.value})}/></div>
+          <div className="flex-1"><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Fim</label><input type="date" className="w-full p-2 border rounded-lg bg-slate-50 text-sm font-bold" value={dates.end} onChange={e => setDates({...dates, end: e.target.value})}/></div>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold"><tr><th className="p-4">Colaborador</th><th className="p-4 w-20 text-center">Dias</th><th className="p-4 w-24 text-center">Hrs Ext</th><th className="p-4 w-32 text-right">R$ Extra</th><th className="p-4 w-32 text-right">Bônus</th><th className="p-4 w-32 text-right">Desc.</th><th className="p-4 w-40 text-right bg-blue-50/50">Líquido</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">
-              {employees.map(emp => {
-                const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0;
-                return (
-                  <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4"><div className="font-bold text-slate-700">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>{p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-bold hover:bg-orange-200 transition"><AlertTriangle size={12}/> Vale: {money(p.total)}</div>} {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold"><CheckCircle size={12}/> Descontado</div>}</td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.days || ''} onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.overtimeHours || ''} onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-right font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none" value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-emerald-200 bg-emerald-50/50 rounded-lg text-right font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none" value={inputs[emp.id]?.bonus || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-red-200 bg-red-50/50 rounded-lg text-right font-bold text-red-600 focus:ring-2 focus:ring-red-500 outline-none" value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/></td>
-                    <td className="p-4 text-right bg-blue-50/30"><span className="font-mono font-bold text-lg text-slate-800">{money(v.netTotal)}</span></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      </div>
+
+      {/* LISTA DE FUNCIONÁRIOS (AGORA EM CARDS PARA MOBILE) */}
+      <div className="space-y-4">
+        {employees.map(emp => {
+          const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0;
+          return (
+            <div key={emp.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-start">
+                <div><h4 className="font-bold text-slate-800">{emp.name}</h4><p className="text-xs text-slate-500 uppercase">{emp.role}</p></div>
+                {p.total > 0 && !done && <button onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="text-[10px] font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded flex items-center gap-1 animate-pulse"><AlertTriangle size={12}/> Vale: {money(p.total)}</button>}
+                {done && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded flex items-center gap-1"><CheckCircle size={12}/> Descontado</span>}
+              </div>
+              
+              <div className="p-4 grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
+                <div><label className="text-[10px] font-bold text-slate-400 uppercase">Dias Trab.</label><input type="number" className="w-full p-2 border rounded bg-white text-center font-bold focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.days || ''} onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></div>
+                <div><label className="text-[10px] font-bold text-blue-400 uppercase">Hrs Extras</label><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50 text-center font-bold text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.overtimeHours || ''} onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></div>
+                <div className="col-span-2 md:col-span-1"><label className="text-[10px] font-bold text-blue-400 uppercase">R$ Extra</label><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50 text-right font-bold text-blue-700 outline-none" value={inputs[emp.id]?.overtime || ''} onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)} placeholder="0.00"/></div>
+                <div className="col-span-1"><label className="text-[10px] font-bold text-emerald-500 uppercase">Bônus</label><input type="number" className="w-full p-2 border border-emerald-200 bg-emerald-50 text-right font-bold text-emerald-700 outline-none" value={inputs[emp.id]?.bonus || ''} onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)} placeholder="0.00"/></div>
+                <div className="col-span-1"><label className="text-[10px] font-bold text-red-400 uppercase">Desconto</label><input type="number" className="w-full p-2 border border-red-200 bg-red-50 text-right font-bold text-red-700 outline-none" value={inputs[emp.id]?.discount || ''} onChange={e => handleInputChange(emp.id, 'discount', e.target.value)} placeholder="0.00"/></div>
+                
+                {/* TOTAL LÍQUIDO NO CARD */}
+                <div className="col-span-2 md:col-span-1 bg-slate-100 rounded p-2 flex justify-between items-center md:block">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase md:hidden">Líquido:</span>
+                  <div className="text-right font-bold text-slate-800 text-lg">{money(v.netTotal)}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* BARRA FLUTUANTE DE TOTAL */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex flex-col md:flex-row justify-between items-center gap-4 z-50">
+        <div className="flex justify-between w-full md:w-auto gap-4">
+          <div><p className="text-[10px] text-slate-400 uppercase font-bold">Total Geral</p><p className="text-2xl font-bold text-slate-800">{money(totalPayroll)}</p></div>
         </div>
-        <div className="mt-6 flex justify-end items-center gap-4">
-          <div className="text-right mr-4"><p className="text-xs text-slate-400 uppercase font-bold">Total Previsto</p><p className="text-2xl font-bold text-slate-800">{money(totalPayroll)}</p></div>
-          <Button onClick={saveAndGenerate} disabled={saving} className="shadow-xl px-8 py-3 text-lg">
-            {saving ? 'Salvando...' : initialData ? <><Save size={20}/> Atualizar Pagamento</> : <><Printer size={20}/> Salvar e Gerar</>}
-          </Button>
-        </div>
-      </Card>
+        <Button onClick={saveAndGenerate} disabled={saving} className="w-full md:w-auto shadow-xl py-3 text-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+          {saving ? 'Processando...' : <><Printer size={20}/> {initialData ? 'Atualizar' : 'Gerar Documentos'}</>}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -475,21 +450,12 @@ function CompanySettings({ userId, currentData, onSave }) {
   const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
 
   const handleImportEmployees = async () => {
-    if(!confirm("Deseja importar os 20 funcionários da planilha para sua base?")) return;
+    if(!confirm("Importar 20 funcionários da planilha?")) return;
     setImporting(true);
     try {
-      const batchPromises = EMPLOYEES_FROM_SHEET.map(emp => 
-        addDoc(collection(db, 'users', userId, 'employees'), {
-          ...emp,
-          type: 'diarista', 
-          createdAt: new Date()
-        })
-      );
-      await Promise.all(batchPromises);
-      alert("Sucesso! 20 Funcionários importados.");
-    } catch (error) {
-      alert("Erro na importação: " + error.message);
-    }
+      const batchPromises = EMPLOYEES_FROM_SHEET.map(emp => addDoc(collection(db, 'users', userId, 'employees'), { ...emp, type: 'diarista', createdAt: new Date() }));
+      await Promise.all(batchPromises); alert("Sucesso!");
+    } catch (error) { alert("Erro: " + error.message); }
     setImporting(false);
   };
 
