@@ -11,7 +11,8 @@ import {
   Users, Calculator, FileText, Plus, Trash2, 
   Printer, Calendar, ArrowLeft, Table, ArrowRight, Pencil, 
   Receipt, AlertTriangle, CheckCircle, LogOut, Lock, Settings, Building2,
-  History, Eye, EyeOff, Save, DollarSign, Send, Copy, DownloadCloud, FileCheck, ShieldAlert, Briefcase
+  History, Eye, EyeOff, Save, DollarSign, Send, Copy, DownloadCloud, 
+  FileCheck, ShieldAlert, Briefcase, UserMinus, FileX
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO FIXA DO FIREBASE ---
@@ -60,7 +61,6 @@ const Badge = ({ children, color = "blue" }) => {
   return <span className={`${colors[color]} border px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider`}>{children}</span>;
 };
 
-// --- MÁGICA DO MODO PRIVACIDADE ---
 const PrivacyValue = ({ value, isPrivate, prefix = "R$ " }) => {
   if (isPrivate) return <span className="blur-sm select-none bg-slate-100 rounded px-2 text-transparent">00000</span>;
   return <span>{prefix}{Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>;
@@ -120,7 +120,7 @@ export default function App() {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [editingPayroll, setEditingPayroll] = useState(null); 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [privacyMode, setPrivacyMode] = useState(false); // NOVO: MODO PRIVACIDADE
+  const [privacyMode, setPrivacyMode] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -138,7 +138,6 @@ export default function App() {
     return () => { unsubEmp(); unsubAdv(); unsubSettings(); };
   }, [user]);
 
-  // Navegação
   const navigate = (v) => { setView(v); setMobileMenuOpen(false); };
   const handleEditPayroll = (data) => { setEditingPayroll(data); navigate('payroll'); };
   const handleViewReport = (data) => { setEditingPayroll(data); navigate('report_general'); };
@@ -152,7 +151,7 @@ export default function App() {
       case 'report_general': return <GeneralReportView data={editingPayroll} onViewHolerites={() => navigate('print_holerites')} onBack={() => navigate('payroll')} companyData={companyData} privacyMode={privacyMode} />;
       case 'print_holerites': return <HoleriteView data={editingPayroll} onBack={() => navigate('report_general')} companyData={companyData} />;
       case 'settings': return <CompanySettings userId={user?.uid} currentData={companyData} onSave={() => navigate('dashboard')} />;
-      case 'docs': return <DocumentGenerator employees={employees} companyData={companyData} onBack={() => navigate('dashboard')} />; // NOVO MODULO
+      case 'docs': return <DocumentGenerator employees={employees} companyData={companyData} onBack={() => navigate('dashboard')} />;
       default: return <Dashboard changeView={navigate} onNewCalc={handleNewCalculation} employees={employees} userId={user?.uid} privacyMode={privacyMode} />;
     }
   };
@@ -183,7 +182,6 @@ export default function App() {
           </nav>
           
           <div className="flex items-center gap-2">
-            {/* BOTÃO DE PRIVACIDADE */}
             <button onClick={() => setPrivacyMode(!privacyMode)} className="p-2 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition" title={privacyMode ? "Mostrar Valores" : "Ocultar Valores"}>
               {privacyMode ? <EyeOff size={20}/> : <Eye size={20}/>}
             </button>
@@ -215,16 +213,18 @@ export default function App() {
   );
 }
 
-// --- NOVO MÓDULO: GERADOR DE DOCUMENTOS ---
+// --- GERADOR DE DOCUMENTOS (AGORA COM RESCISÃO) ---
 function DocumentGenerator({ employees, companyData, onBack }) {
   const [selectedEmp, setSelectedEmp] = useState('');
   const [docType, setDocType] = useState('declaracao_trabalho');
   const [generated, setGenerated] = useState(false);
+  
+  // Estado extra para Rescisão
+  const [terminationValue, setTerminationValue] = useState('');
 
   const employee = employees.find(e => e.id === selectedEmp);
   const today = new Date().toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'});
 
-  // Templates de Texto
   const getDocContent = () => {
     if (!employee) return null;
     
@@ -269,6 +269,10 @@ function DocumentGenerator({ employees, companyData, onBack }) {
         title = "RECIBO DE ENTREGA DE UNIFORME/EPI";
         body = `Recebi da empresa ${companyData?.name} os itens de uniforme/EPI abaixo relacionados para uso exclusivo em serviço. Comprometo-me a zelar pela sua guarda e conservação.\n\nITENS:\n___________________________________________________\n___________________________________________________\n___________________________________________________`;
         break;
+      case 'rescisao':
+        title = "TERMO DE QUITAÇÃO E RESCISÃO DE CONTRATO DE PRESTAÇÃO DE SERVIÇOS";
+        body = `Pelo presente instrumento particular, de um lado a empresa ${companyData?.name}, e de outro lado o(a) Sr(a). ${employee.name}, inscrito(a) no CPF sob nº ${employee.cpf || '___________'}, declaram para os devidos fins de direito que, nesta data, têm entre si, justo e contratado, o DISTRATO E RESCISÃO do contrato de trabalho/prestação de serviços havido entre as partes.\n\nO(A) contratado(a) declara ter recebido, neste ato, a importância líquida de R$ ${Number(terminationValue || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} (referente a saldo de salários e demais verbas pactuadas), outorgando à empresa plena, rasa, geral e irrevogável quitação, para nada mais reclamar a qualquer título, seja no presente ou no futuro, referente ao período trabalhado.`;
+        break;
     }
 
     return (
@@ -306,23 +310,41 @@ function DocumentGenerator({ employees, companyData, onBack }) {
               {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
+          
           <div>
             <label className="block text-sm font-bold mb-2">2. Tipo de Documento</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button onClick={() => setDocType('rescisao')} className={`p-4 rounded-xl border-2 text-left transition ${docType==='rescisao' ? 'border-red-600 bg-red-50 shadow-md' : 'border-slate-100 hover:border-red-300'}`}>
+                <UserMinus className="mb-2 text-red-600"/> <div className="font-bold text-sm text-red-900">Termo de Rescisão</div><div className="text-xs text-slate-500">Quitação final (Seguro)</div>
+              </button>
+              <button onClick={() => setDocType('advertencia')} className={`p-4 rounded-xl border-2 text-left transition ${docType==='advertencia' ? 'border-orange-500 bg-orange-50' : 'border-slate-100 hover:border-orange-300'}`}>
+                <ShieldAlert className="mb-2 text-orange-500"/> <div className="font-bold text-sm">Advertência</div><div className="text-xs text-slate-400">Disciplinar</div>
+              </button>
               <button onClick={() => setDocType('declaracao_trabalho')} className={`p-4 rounded-xl border-2 text-left transition ${docType==='declaracao_trabalho' ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-blue-300'}`}>
-                <FileCheck className="mb-2 text-blue-500"/> <div className="font-bold text-sm">Declaração de Trabalho</div><div className="text-xs text-slate-400">Para bancos e crédito</div>
-              </button>
-              <button onClick={() => setDocType('advertencia')} className={`p-4 rounded-xl border-2 text-left transition ${docType==='advertencia' ? 'border-red-500 bg-red-50' : 'border-slate-100 hover:border-red-300'}`}>
-                <ShieldAlert className="mb-2 text-red-500"/> <div className="font-bold text-sm">Advertência Disciplinar</div><div className="text-xs text-slate-400">Faltas ou conduta</div>
-              </button>
-              <button onClick={() => setDocType('vale_transporte')} className={`p-4 rounded-xl border-2 text-left transition ${docType==='vale_transporte' ? 'border-orange-500 bg-orange-50' : 'border-slate-100 hover:border-orange-300'}`}>
-                <Briefcase className="mb-2 text-orange-500"/> <div className="font-bold text-sm">Opção Vale Transporte</div><div className="text-xs text-slate-400">Admissional</div>
+                <FileCheck className="mb-2 text-blue-500"/> <div className="font-bold text-sm">Declaração</div><div className="text-xs text-slate-400">Para bancos</div>
               </button>
               <button onClick={() => setDocType('uniforme')} className={`p-4 rounded-xl border-2 text-left transition ${docType==='uniforme' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-emerald-300'}`}>
-                <CheckCircle className="mb-2 text-emerald-500"/> <div className="font-bold text-sm">Recibo de Uniforme</div><div className="text-xs text-slate-400">Entrega de EPIs</div>
+                <CheckCircle className="mb-2 text-emerald-500"/> <div className="font-bold text-sm">Recibo de EPI</div><div className="text-xs text-slate-400">Uniforme</div>
               </button>
             </div>
           </div>
+
+          {/* CAMPO EXTRA PARA O VALOR DA RESCISÃO */}
+          {docType === 'rescisao' && (
+            <div className="animate-slide-up bg-red-50 p-4 rounded-xl border border-red-100">
+              <label className="block text-sm font-bold mb-1 text-red-800">Valor Total da Rescisão (R$)</label>
+              <input 
+                type="number" 
+                step="0.01" 
+                className="w-full p-3 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-lg font-bold text-red-700" 
+                placeholder="0,00" 
+                value={terminationValue} 
+                onChange={e => setTerminationValue(e.target.value)}
+              />
+              <p className="text-xs text-red-500 mt-1">Digite o valor final acordado para constar no recibo de quitação.</p>
+            </div>
+          )}
+
           <div className="pt-4 flex justify-end">
             <Button onClick={() => { if(!selectedEmp) return alert("Selecione um funcionário"); setGenerated(true); }} disabled={!selectedEmp} className="w-full md:w-auto">Gerar Documento <ArrowRight size={20}/></Button>
           </div>
@@ -346,7 +368,6 @@ function Dashboard({ changeView, onNewCalc, employees, userId, privacyMode }) {
   const totalEmployees = employees.length;
   const totalPayrollEstimate = employees.reduce((acc, emp) => acc + emp.baseValue, 0);
 
-  // Aniversariantes de Empresa (Tempo de Casa)
   const currentMonth = new Date().getMonth();
   const anniversaries = employees.filter(e => e.admissionDate && new Date(e.admissionDate).getMonth() === currentMonth);
 
@@ -357,42 +378,23 @@ function Dashboard({ changeView, onNewCalc, employees, userId, privacyMode }) {
         <div className="text-right hidden md:block"><p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data de Hoje</p><p className="text-xl font-bold text-slate-700">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div>
       </div>
 
-      {/* NOTIFICAÇÃO DE ANIVERSÁRIO DE CASA */}
       {anniversaries.length > 0 && (
         <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex items-start gap-4 animate-fade-in">
           <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><FileCheck size={24}/></div>
-          <div>
-            <h4 className="font-bold text-indigo-900">Aniversário de Empresa este Mês! 🎉</h4>
-            <p className="text-sm text-indigo-700 mt-1">
-              {anniversaries.map(e => `${e.name.split(' ')[0]} (${new Date(e.admissionDate).getDate()}/${new Date(e.admissionDate).getMonth()+1})`).join(', ')}
-            </p>
-          </div>
+          <div><h4 className="font-bold text-indigo-900">Aniversário de Empresa este Mês! 🎉</h4><p className="text-sm text-indigo-700 mt-1">{anniversaries.map(e => `${e.name.split(' ')[0]} (${new Date(e.admissionDate).getDate()}/${new Date(e.admissionDate).getMonth()+1})`).join(', ')}</p></div>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none">
-          <div className="flex justify-between items-start"><div><p className="text-blue-100 text-sm font-medium mb-1">Funcionários</p><h3 className="text-4xl font-bold">{totalEmployees}</h3></div><div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div></div>
-        </Card>
-        <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none">
-          <div className="flex justify-between items-start"><div><p className="text-emerald-100 text-sm font-medium mb-1">Folha Estimada</p><h3 className="text-4xl font-bold"><PrivacyValue value={totalPayrollEstimate} isPrivate={privacyMode} /></h3></div><div className="bg-white/20 p-2 rounded-lg"><DollarSign size={24}/></div></div>
-        </Card>
-        <Card onClick={() => setIsValeOpen(true)} className="bg-gradient-to-br from-orange-400 to-pink-500 text-white border-none cursor-pointer group">
-          <div className="flex justify-between items-start"><div><p className="text-orange-100 text-sm font-medium mb-1">Ação Rápida</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Lançar Vale</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><Receipt size={24}/></div></div>
-        </Card>
+        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none"><div className="flex justify-between items-start"><div><p className="text-blue-100 text-sm font-medium mb-1">Funcionários</p><h3 className="text-4xl font-bold">{totalEmployees}</h3></div><div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div></div></Card>
+        <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none"><div className="flex justify-between items-start"><div><p className="text-emerald-100 text-sm font-medium mb-1">Folha Estimada</p><h3 className="text-4xl font-bold"><PrivacyValue value={totalPayrollEstimate} isPrivate={privacyMode} /></h3></div><div className="bg-white/20 p-2 rounded-lg"><DollarSign size={24}/></div></div></Card>
+        <Card onClick={() => setIsValeOpen(true)} className="bg-gradient-to-br from-orange-400 to-pink-500 text-white border-none cursor-pointer group"><div className="flex justify-between items-start"><div><p className="text-orange-100 text-sm font-medium mb-1">Ação Rápida</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Lançar Vale</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><Receipt size={24}/></div></div></Card>
       </div>
       
-      {/* MENU DE AÇÕES RÁPIDAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        <Card onClick={() => changeView('employees')} className="group cursor-pointer hover:border-blue-300">
-          <div className="flex items-center gap-4"><div className="bg-blue-100 p-3 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={24}/></div><div><h3 className="text-lg font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-xs">Cadastros e Dados</p></div></div>
-        </Card>
-        <Card onClick={onNewCalc} className="group cursor-pointer hover:border-emerald-300">
-          <div className="flex items-center gap-4"><div className="bg-emerald-100 p-3 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={24}/></div><div><h3 className="text-lg font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-xs">Folha e Recibos</p></div></div>
-        </Card>
-        <Card onClick={() => changeView('docs')} className="group cursor-pointer hover:border-indigo-300">
-          <div className="flex items-center gap-4"><div className="bg-indigo-100 p-3 rounded-full text-indigo-600 group-hover:scale-110 transition-transform"><FileText size={24}/></div><div><h3 className="text-lg font-bold text-slate-800">Gerar Documentos</h3><p className="text-slate-500 text-xs">Declarações e Advertências</p></div></div>
-        </Card>
+        <Card onClick={() => changeView('employees')} className="group cursor-pointer hover:border-blue-300"><div className="flex items-center gap-4"><div className="bg-blue-100 p-3 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={24}/></div><div><h3 className="text-lg font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-xs">Cadastros e Dados</p></div></div></Card>
+        <Card onClick={onNewCalc} className="group cursor-pointer hover:border-emerald-300"><div className="flex items-center gap-4"><div className="bg-emerald-100 p-3 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={24}/></div><div><h3 className="text-lg font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-xs">Folha e Recibos</p></div></div></Card>
+        <Card onClick={() => changeView('docs')} className="group cursor-pointer hover:border-indigo-300"><div className="flex items-center gap-4"><div className="bg-indigo-100 p-3 rounded-full text-indigo-600 group-hover:scale-110 transition-transform"><FileText size={24}/></div><div><h3 className="text-lg font-bold text-slate-800">Gerar Documentos</h3><p className="text-slate-500 text-xs">Declarações e Rescisão</p></div></div></Card>
       </div>
 
       {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento quinzenal"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar Lançamento</Button></div></form></div></div> )}
@@ -444,7 +446,7 @@ function PayrollHistory({ userId, onViewReport, onEdit, privacyMode }) {
   );
 }
 
-// --- CALCULADORA (MOBILE FIRST) ---
+// --- CALCULADORA ---
 function PayrollCalculator({ employees, advances, userId, initialData, onGenerate, companyData, privacyMode }) {
   const [inputs, setInputs] = useState({});
   const [dates, setDates] = useState({ start: '', end: '' });
@@ -535,7 +537,6 @@ function PayrollCalculator({ employees, advances, userId, initialData, onGenerat
                 {p.total > 0 && !done && <button onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="text-[10px] font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded flex items-center gap-1 animate-pulse"><AlertTriangle size={12}/> Vale: {money(p.total)}</button>}
                 {done && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded flex items-center gap-1"><CheckCircle size={12}/> Descontado</span>}
               </div>
-              
               <div className="p-4 grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Dias Trab.</label><input type="number" className="w-full p-2 border rounded bg-white text-center font-bold focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.days || ''} onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></div>
                 <div><label className="text-[10px] font-bold text-blue-400 uppercase">Hrs Extras</label><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50 text-center font-bold text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" value={inputs[emp.id]?.overtimeHours || ''} onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></div>
@@ -557,23 +558,137 @@ function PayrollCalculator({ employees, advances, userId, initialData, onGenerat
   );
 }
 
-// --- GERENCIADOR DE FUNCIONÁRIOS ---
-// (Mantido igual ao anterior)
-function EmployeeManager({ employees, userId }) {
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const initialFormState = { name: '', role: '', baseValue: '', type: 'mensalista', pix: '', cpf: '', address: '', admissionDate: '', workHoursPerDay: '8' };
-  const [formData, setFormData] = useState(initialFormState);
-  const handleEdit = (employee) => { setFormData({ ...employee }); setEditingId(employee.id); setIsFormOpen(true); };
-  const handleNew = () => { setFormData(initialFormState); setEditingId(null); setIsFormOpen(true); };
-  const handleSubmit = async (e) => { e.preventDefault(); if (!formData.name) return; const data = { ...formData, baseValue: parseFloat(formData.baseValue), workHoursPerDay: parseFloat(formData.workHoursPerDay) || 8 }; try { if (editingId) { await updateDoc(doc(db, 'users', userId, 'employees', editingId), data); } else { await addDoc(collection(db, 'users', userId, 'employees'), data); } setIsFormOpen(false); } catch (err) { alert("Erro!"); } };
-  const handleDelete = async (id) => { if (confirm('Excluir?')) await deleteDoc(doc(db, 'users', userId, 'employees', id)); };
+// --- CONFIGURAÇÕES E IMPORTADOR ---
+function CompanySettings({ userId, currentData, onSave }) {
+  const [formData, setFormData] = useState({ name: '', cnpj: '', address: '', phone: '', logoUrl: '' });
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => { if (currentData) setFormData(currentData); }, [currentData]);
+  
+  const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
+
+  const handleImportEmployees = async () => {
+    if(!confirm("Deseja importar os 20 funcionários da planilha para sua base?")) return;
+    setImporting(true);
+    try {
+      const batchPromises = EMPLOYEES_FROM_SHEET.map(emp => 
+        addDoc(collection(db, 'users', userId, 'employees'), {
+          ...emp,
+          type: 'diarista', 
+          createdAt: new Date()
+        })
+      );
+      await Promise.all(batchPromises);
+      alert("Sucesso! 20 Funcionários importados.");
+    } catch (error) {
+      alert("Erro na importação: " + error.message);
+    }
+    setImporting(false);
+  };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto animate-fade-in">
-      <div className="flex justify-between items-center mb-6"><div className="flex items-center gap-3"><div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Users size={24}/></div><h2 className="text-2xl font-bold text-slate-700">Equipe</h2></div><Button onClick={handleNew}><Plus size={20} /> Novo Cadastro</Button></div>
-      {isFormOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-8 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slide-up"><h3 className="text-2xl font-bold mb-6 text-slate-800 border-b pb-4">{editingId ? 'Editar Funcionário' : 'Novo Funcionário'}</h3><form onSubmit={handleSubmit} className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><div className="lg:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo</label><input type="text" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">CPF</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Admissão</label><input type="date" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.admissionDate} onChange={e => setFormData({...formData, admissionDate: e.target.value})} /></div><div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo</label><input type="text" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo Contrato</label><select className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}><option value="mensalista">Mensalista</option><option value="diarista">Diarista</option></select></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor Diária/Mês (R$)</label><input type="number" step="0.01" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.baseValue} onChange={e => setFormData({...formData, baseValue: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Horas/Dia</label><input type="number" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.workHoursPerDay} onChange={e => setFormData({...formData, workHoursPerDay: e.target.value})} /></div><div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Chave PIX</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.pix} onChange={e => setFormData({...formData, pix: e.target.value})} /></div></div><div className="flex justify-end gap-3 pt-4 border-t"><Button variant="secondary" type="button" onClick={() => setIsFormOpen(false)}>Cancelar</Button><Button type="submit">Salvar Dados</Button></div></form></div></div> )}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{employees.map(emp => (<Card key={emp.id} className="group"><div><div className="flex justify-between items-start mb-2"><div className="bg-blue-50 text-blue-600 font-bold px-2 py-1 rounded text-xs uppercase tracking-wide">{emp.role}</div><div className="text-slate-400 group-hover:text-blue-500 transition"><Users size={18}/></div></div><h4 className="font-bold text-lg text-slate-800 mb-1">{emp.name}</h4><div className="text-xs text-slate-400 flex gap-2 mb-4"><span>{emp.workHoursPerDay}h/dia</span><span>•</span><span>{emp.type}</span></div><div className="border-t pt-3 flex justify-between items-center"><p className="font-mono font-bold text-slate-700 text-lg">R$ {Number(emp.baseValue).toLocaleString('pt-BR', {minimumFractionDigits:2})}</p><div className="flex gap-2"><button onClick={() => handleEdit(emp)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition"><Pencil size={18}/></button><button onClick={() => handleDelete(emp.id)} className="text-red-400 hover:bg-red-50 p-2 rounded-lg transition"><Trash2 size={18}/></button></div></div></div></Card>))}</div>
+    <div className="max-w-2xl mx-auto animate-fade-in">
+      <Card>
+        <h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><Building2 className="text-blue-600"/> Configurações</h2>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div><label className="block text-sm font-bold mb-1">Nome da Empresa</label><input type="text" required className="w-full p-3 border rounded bg-slate-50" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Padaria do João"/></div>
+          <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">CNPJ</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1">Telefone</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div></div>
+          <div><label className="block text-sm font-bold mb-1">URL Logo</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})}/></div>
+          
+          <div className="pt-6 mt-6 border-t border-slate-100">
+            <h3 className="font-bold text-slate-500 mb-3 uppercase text-xs">Ferramentas Avançadas</h3>
+            <button type="button" onClick={handleImportEmployees} disabled={importing} className="w-full border-2 border-dashed border-emerald-300 bg-emerald-50 text-emerald-700 font-bold py-3 rounded-xl hover:bg-emerald-100 transition flex items-center justify-center gap-2">
+              {importing ? 'Importando...' : <><DownloadCloud size={20}/> Importar 20 Funcionários da Planilha</>}
+            </button>
+          </div>
+
+          <div className="pt-4 flex gap-2 justify-end"><Button variant="secondary" type="button" onClick={onSave}>Voltar</Button><Button type="submit">Salvar</Button></div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+// --- REPORT VIEWS ---
+function GeneralReportView({ data, onViewHolerites, onBack, companyData, privacyMode }) {
+  // Função segura para formatar dinheiro
+  const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+  const date = (d) => d ? d.split('-').reverse().join('/') : '';
+  const total = data.items.reduce((acc, i) => acc + (i.netTotal||0), 0);
+  const copyPix = (pix) => { navigator.clipboard.writeText(pix); alert("PIX copiado!"); };
+
+  return (
+    <div className="max-w-full mx-auto pb-20 animate-fade-in">
+      <div className="bg-white p-4 rounded-xl shadow-lg mb-6 print:hidden flex justify-between items-center border border-slate-200"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar para Edição</button><div className="flex gap-3"><Button variant="secondary" onClick={() => window.print()}><Printer size={18}/> Imprimir Relatório</Button><Button onClick={onViewHolerites}>Ver Holerites <ArrowRight size={18}/></Button></div></div>
+      <div className="bg-white print:w-full shadow-2xl overflow-hidden rounded-lg">
+        <div className="bg-slate-900 text-white p-6 flex justify-between items-end"><div><h1 className="text-2xl font-bold uppercase tracking-wider">{companyData?.name}</h1><p className="text-slate-400 text-sm mt-1">Relatório Gerencial de Pagamentos</p></div><div className="text-right"><p className="text-slate-400 text-sm uppercase font-bold tracking-wider">Período</p><p className="text-xl font-bold">{date(data.startDate)} - {date(data.endDate)}</p></div></div>
+        <table className="w-full text-sm font-sans">
+          <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold border-b border-slate-200"><tr><th className="p-3 text-left pl-6">Colaborador</th><th className="p-3 text-center">Dias</th><th className="p-3 text-right">Base</th><th className="p-3 text-right">Bruto</th><th className="p-3 text-right text-red-500">Desc.</th><th className="p-3 text-right text-blue-500">Extra/Bônus</th><th className="p-3 text-right bg-blue-50/50">LÍQUIDO</th><th className="p-3 text-left w-48">PIX</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">
+            {data.items.map((i, idx) => (
+              <tr key={idx} className="hover:bg-slate-50">
+                <td className="p-3 pl-6"><div className="font-bold text-slate-700 uppercase">{i.name}</div><div className="text-[10px] text-slate-400 uppercase">{i.role}</div></td>
+                <td className="p-3 text-center"><Badge color="blue">{i.daysWorked}d</Badge></td>
+                <td className="p-3 text-right text-slate-500">{money(i.dailyRate)}</td>
+                <td className="p-3 text-right font-medium">{money(i.grossTotal)}</td>
+                <td className="p-3 text-right text-red-600 font-medium">{(i.discount||0)>0 ? `(${money(i.discount)})` : '-'}</td>
+                <td className="p-3 text-right text-blue-600 font-medium">{money((i.bonus||0)+(i.overtime||0))}</td>
+                <td className="p-3 text-right font-bold text-slate-800 bg-blue-50/50 text-base"><PrivacyValue value={i.netTotal} isPrivate={privacyMode}/></td>
+                <td className="p-3 flex items-center gap-2 group"><span className="text-xs truncate max-w-[120px] block" title={i.pix}>{i.pix}</span>{i.pix && <button onClick={() => copyPix(i.pix)} className="opacity-0 group-hover:opacity-100 text-blue-500 hover:scale-110 transition"><Copy size={14}/></button>}</td>
+              </tr>
+            ))}
+            <tr className="bg-slate-800 text-white"><td colSpan="6" className="p-4 text-right uppercase font-bold tracking-wider text-sm">Total Geral da Folha:</td><td className="p-4 text-right font-bold text-xl bg-slate-700"><PrivacyValue value={total} isPrivate={privacyMode}/></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function HoleriteView({ data, onBack, companyData }) {
+  const money = (v) => Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+  const date = (d) => d ? d.split('-').reverse().join('/') : '';
+  const empName = companyData?.name || 'EMPRESA'; const empCnpj = companyData?.cnpj || ''; const empLogo = companyData?.logoUrl;
+
+  const sendWhatsapp = (item) => {
+    const msg = `Olá ${item.name.split(' ')[0]}! Segue o resumo do seu holerite (${date(data.startDate)} a ${date(data.endDate)}).%0A%0A*Total Bruto:* ${money(item.grossTotal + (item.bonus||0) + (item.overtime||0))}%0A*Descontos:* ${money(item.discount)}%0A*VALOR LÍQUIDO:* ${money(item.netTotal)}%0A%0AQualquer dúvida, estamos à disposição.`;
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto pb-20 animate-fade-in">
+      <div className="bg-white p-4 rounded-xl shadow-lg mb-8 print:hidden flex justify-between items-center border border-slate-200"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button><Button onClick={() => window.print()}><Printer size={18} /> Imprimir Todos</Button></div>
+      <div className="print:w-full space-y-8">{data.items.map((item, index) => {
+        const totalAdvances = (item.advancesIncluded || []).reduce((acc, c) => acc + (c.value||0), 0);
+        const genericDiscount = (item.discount || 0) - totalAdvances;
+        return (
+          <div key={index} className="bg-white text-black font-sans text-xs mb-10 print:mb-4 print:break-inside-avoid max-w-[21cm] mx-auto border-2 border-slate-800 flex shadow-2xl print:shadow-none relative group">
+            <button onClick={() => sendWhatsapp(item)} className="absolute -right-12 top-0 bg-green-500 text-white p-2 rounded-full shadow-lg hover:bg-green-600 hover:scale-110 transition print:hidden" title="Enviar no WhatsApp"><Send size={20}/></button>
+            <div className="flex-1">
+              <div className="border-b-2 border-slate-800 p-4 flex justify-between items-end bg-slate-50">
+                <div className="flex items-center gap-4">{empLogo && <img src={empLogo} alt="Logo" className="h-12 w-auto mix-blend-multiply" />}<div><h1 className="font-bold text-lg uppercase tracking-tight">{empName}</h1><p className="text-[10px] text-slate-500 font-mono">CNPJ: {empCnpj}</p></div></div>
+                <div className="text-right"><h2 className="font-bold text-sm uppercase tracking-widest border-b-2 border-slate-800 mb-1">Recibo de Pagamento</h2><p className="text-xs font-bold">{date(data.startDate)} a {date(data.endDate)}</p></div>
+              </div>
+              <div className="border-b border-slate-800 p-2 grid grid-cols-12 gap-2 bg-white"><div className="col-span-1 font-bold text-slate-400 uppercase text-[10px]">Cód.</div><div className="col-span-6 font-bold text-slate-400 uppercase text-[10px]">Funcionário</div><div className="col-span-5 font-bold text-slate-400 uppercase text-[10px]">Cargo</div><div className="col-span-1 font-mono">00{index + 1}</div><div className="col-span-6 uppercase font-bold">{item.name}</div><div className="col-span-5 uppercase">{item.role}</div></div>
+              <div className="relative min-h-[280px]">
+                <div className="grid grid-cols-[50px_1fr_60px_80px_80px] border-b border-slate-300 font-bold bg-slate-100 text-[10px] text-center uppercase tracking-wider"><div className="border-r border-slate-300 p-1">Ref</div><div className="border-r border-slate-300 p-1 text-left pl-3">Descrição</div><div className="border-r border-slate-300 p-1">Qtd</div><div className="border-r border-slate-300 p-1 text-green-700">Vencimentos</div><div className="p-1 text-red-700">Descontos</div></div>
+                <div className="text-[11px] font-mono">
+                   <div className="grid grid-cols-[50px_1fr_60px_80px_80px] hover:bg-slate-50"><div className="text-center border-r border-dashed border-slate-200 py-1 text-slate-400">001</div><div className="pl-3 border-r border-dashed border-slate-200 py-1 uppercase">Salário Base / Diárias</div><div className="text-center border-r border-dashed border-slate-200 py-1">{item.daysWorked}d</div><div className="text-right border-r border-dashed border-slate-200 py-1 pr-2 text-slate-700">{money(item.grossTotal)}</div><div className="text-right py-1 pr-2 text-slate-300">0,00</div></div>
+                   {(item.overtime||0)>0 && <div className="grid grid-cols-[50px_1fr_60px_80px_80px] hover:bg-slate-50"><div className="text-center border-r border-dashed border-slate-200 py-1 text-slate-400">002</div><div className="pl-3 border-r border-dashed border-slate-200 py-1 uppercase">Horas Extras</div><div className="text-center border-r border-dashed border-slate-200 py-1">{item.overtimeHours}h</div><div className="text-right border-r border-dashed border-slate-200 py-1 pr-2 text-slate-700">{money(item.overtime)}</div><div className="text-right py-1 pr-2 text-slate-300">0,00</div></div>}
+                   {(item.bonus||0)>0 && <div className="grid grid-cols-[50px_1fr_60px_80px_80px] hover:bg-slate-50"><div className="text-center border-r border-dashed border-slate-200 py-1 text-slate-400">003</div><div className="pl-3 border-r border-dashed border-slate-200 py-1 uppercase">Bônus / Acréscimos</div><div className="text-center border-r border-dashed border-slate-200 py-1">-</div><div className="text-right border-r border-dashed border-slate-200 py-1 pr-2 text-slate-700">{money(item.bonus)}</div><div className="text-right py-1 pr-2 text-slate-300">0,00</div></div>}
+                   {(item.advancesIncluded||[]).map((adv,i)=>(<div key={i} className="grid grid-cols-[50px_1fr_60px_80px_80px] hover:bg-red-50"><div className="text-center border-r border-dashed border-slate-200 py-1 text-slate-400">05{i}</div><div className="pl-3 border-r border-dashed border-slate-200 py-1 uppercase text-red-800 font-medium">Adiantamento ({adv.description||'Vale'})</div><div className="text-center border-r border-dashed border-slate-200 py-1">-</div><div className="text-right border-r border-dashed border-slate-200 py-1 pr-2 text-slate-300">0,00</div><div className="text-right py-1 pr-2 text-red-700">{money(adv.value)}</div></div>))}
+                   {genericDiscount>0 && <div className="grid grid-cols-[50px_1fr_60px_80px_80px] hover:bg-red-50"><div className="text-center border-r border-dashed border-slate-200 py-1 text-slate-400">099</div><div className="pl-3 border-r border-dashed border-slate-200 py-1 uppercase text-red-800">Outros Descontos</div><div className="text-center border-r border-dashed border-slate-200 py-1">-</div><div className="text-right border-r border-dashed border-slate-200 py-1 pr-2 text-slate-300">0,00</div><div className="text-right py-1 pr-2 text-red-700">{money(genericDiscount)}</div></div>}
+                </div>
+                <div className="absolute top-0 bottom-0 left-[50px] w-px bg-slate-200"></div><div className="absolute top-0 bottom-0 right-[220px] w-px bg-slate-200"></div><div className="absolute top-0 bottom-0 right-[160px] w-px bg-slate-200"></div><div className="absolute top-0 bottom-0 right-[80px] w-px bg-slate-200"></div>
+              </div>
+              <div className="border-t-2 border-slate-800 bg-slate-50 p-3 flex justify-between items-center border-b border-slate-800"><div className="text-[10px] font-medium text-slate-500">Chave PIX: <b className="text-slate-800">{item.pix || 'Não informado'}</b></div><div className="flex items-center gap-3 bg-white border border-slate-300 px-4 py-2 rounded shadow-sm"><span className="uppercase font-bold text-xs tracking-wider text-slate-500">Total Líquido</span><span className="font-bold text-xl text-slate-900">{money(item.netTotal)}</span></div></div>
+              <div className="p-4 text-[9px] text-justify text-slate-500 leading-relaxed uppercase tracking-wide">Declaro ter recebido a importância líquida discriminada neste recibo para plena e geral quitação dos serviços prestados e valores aqui descritos.</div>
+              <div className="grid grid-cols-2 gap-12 mt-4 px-8 pb-6 items-end"><div className="text-center"><p className="border-t border-slate-400 pt-2 font-medium">{new Date().toLocaleDateString()}</p><p className="text-[9px] uppercase text-slate-400 font-bold mt-1">Data do Pagamento</p></div><div className="text-center"><p className="border-t border-slate-400 pt-2 font-medium uppercase">{item.name}</p><p className="text-[9px] uppercase text-slate-400 font-bold mt-1">Assinatura do Colaborador</p></div></div>
+            </div>
+            <div className="w-12 border-l-2 border-dashed border-slate-300 flex flex-col items-center justify-center relative bg-slate-50"><div className="absolute w-full h-full flex items-center justify-center" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}><p className="text-[8px] uppercase font-bold tracking-[0.3em] text-slate-300 py-4 border-r border-slate-200 pr-2 whitespace-nowrap">Via Contabilidade / Arquivo</p></div></div>
+          </div>
+        );})}
+      </div>
     </div>
   );
 }
