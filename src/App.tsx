@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
-  doc, deleteDoc, updateDoc, setDoc 
+  doc, deleteDoc, updateDoc, setDoc, query, orderBy 
 } from 'firebase/firestore';
 import { 
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut 
@@ -11,10 +11,10 @@ import {
   Users, Calculator, FileText, Plus, Trash2, 
   Printer, Calendar, ArrowLeft, Table, ArrowRight, Pencil, 
   Receipt, AlertTriangle, CheckCircle, LogOut, Lock, Settings, Building2,
-  TrendingUp, DollarSign, Send, Copy, Check, DownloadCloud
+  History, Eye
 } from 'lucide-react';
 
-// --- CONFIGURAÇÃO FIXA DO FIREBASE ---
+// --- CONFIGURAÇÃO FIXA DO FIREBASE (SUA CHAVE) ---
 const firebaseConfig = {
   apiKey: "AIzaSyBXOGHkqIIqZvKzBKGMDHvVUU0kqTNGgz4",
   authDomain: "rh-fast-44bce.firebaseapp.com",
@@ -29,31 +29,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- LISTA DE FUNCIONÁRIOS DA PLANILHA (BACKUP) ---
-const EMPLOYEES_FROM_SHEET = [
-  {name: "DHAMERSON RENAN GOMES", role: "ANALISTA DE ECOMMERCE", baseValue: 171.72, pix: "45990762879", workHoursPerDay: 8},
-  {name: "OLAIR FERREIRA CINTRA", role: "PESPONTADOR", baseValue: 106.70, pix: "16991194786", workHoursPerDay: 8},
-  {name: "IRACI CORREIA", role: "CORTADOR", baseValue: 150.00, pix: "16991801098", workHoursPerDay: 8},
-  {name: "APARECIDO", role: "CORTADOR", baseValue: 150.00, pix: "", workHoursPerDay: 8},
-  {name: "GUSTAVO GABRIEL OLIVEIRA", role: "AUXILIAR DE PRODUÇÃO", baseValue: 100.00, pix: "16992936523", workHoursPerDay: 8},
-  {name: "GUILHERME OLIVEIRA MATOS", role: "AUXILIAR ECOMMERCE", baseValue: 62.66, pix: "581.846.488.12 - INTER", workHoursPerDay: 8},
-  {name: "DAVI GABRIEL DE FREITAS", role: "APONTADOR DE SOLA", baseValue: 166.19, pix: "44075320847", workHoursPerDay: 8},
-  {name: "ANTONIO EXPEDITO", role: "MONTADOR", baseValue: 133.00, pix: "5721232803", workHoursPerDay: 8},
-  {name: "JARBAS JOSE BATISTA", role: "CORTADOR", baseValue: 150.00, pix: "16994238977", workHoursPerDay: 8},
-  {name: "GUILERME MORETTI SILVA", role: "AUXILIAR", baseValue: 100.00, pix: "16992672495", workHoursPerDay: 8},
-  {name: "FERNADO ALVES RANIELI", role: "FECHADOR DE LADO", baseValue: 133.33, pix: "27392484826", workHoursPerDay: 8},
-  {name: "JULIO CESAR MOLINA", role: "AUXILIAR DE EOMERCE", baseValue: 100.00, pix: "39111177870", workHoursPerDay: 8},
-  {name: "DANILO FELICIANO DE OLIVEIRA", role: "REVISOR", baseValue: 122.00, pix: "31475854846", workHoursPerDay: 8},
-  {name: "TIAGO GARCIA DAS NEVES", role: "MOLINEIRO", baseValue: 161.00, pix: "265.074.938.56 - MP", workHoursPerDay: 8},
-  {name: "MARCO ANTONIO OLIVEIRA INACIO", role: "AUXILIAR", baseValue: 114.28, pix: "16997109877", workHoursPerDay: 8},
-  {name: "ADRIANO CESAR GABRIEL", role: "ACABADOR", baseValue: 152.00, pix: "16981627406", workHoursPerDay: 8},
-  {name: "DIEGO MAZZALI", role: "APONTADOR DE SOLA", baseValue: 142.00, pix: "29677051873", workHoursPerDay: 8},
-  {name: "ALEX BENTO", role: "GERENTE", baseValue: 238.00, pix: "", workHoursPerDay: 8},
-  {name: "EDUARDO HENRIQUE SILVA", role: "AUXILIAR", baseValue: 123.80, pix: "EDUARDOHEYTOR19@GMAIL.COM", workHoursPerDay: 8},
-  {name: "SERGIO MESSIAS", role: "PLANEJAMENTO", baseValue: 164.00, pix: "13859745832", workHoursPerDay: 8}
-];
-
-// --- UI COMPONENTS (Design System) ---
+// --- UI COMPONENTS ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 transition-all duration-300 hover:shadow-xl ${onClick ? 'cursor-pointer hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
     {children}
@@ -63,10 +39,8 @@ const Card = ({ children, className = "", onClick }) => (
 const Button = ({ children, variant = 'primary', className = "", ...props }) => {
   const variants = {
     primary: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/30",
-    success: "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 shadow-emerald-500/30",
-    danger: "bg-gradient-to-r from-red-500 to-pink-500 text-white hover:from-red-600 hover:to-pink-600 shadow-red-500/30",
     secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50",
-    dark: "bg-slate-800 text-white hover:bg-slate-900"
+    success: "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 shadow-emerald-500/30",
   };
   return (
     <button className={`${variants[variant]} px-4 py-2 rounded-xl font-bold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`} {...props}>
@@ -155,13 +129,14 @@ export default function App() {
     return () => { unsubEmp(); unsubAdv(); unsubSettings(); };
   }, [user]);
 
-  const handleGenerateReport = (data) => { setReportData(data); setView('report_general'); };
+  const handleViewReport = (data) => { setReportData(data); setView('report_general'); };
 
   const renderView = () => {
     switch(view) {
       case 'employees': return <EmployeeManager employees={employees} userId={user?.uid} />;
-      case 'payroll': return <PayrollCalculator employees={employees} advances={advances} onGenerate={handleGenerateReport} companyData={companyData} />;
-      case 'report_general': return <GeneralReportView data={reportData} onViewHolerites={() => setView('print_holerites')} onBack={() => setView('payroll')} companyData={companyData} />;
+      case 'payroll': return <PayrollCalculator employees={employees} advances={advances} userId={user?.uid} onViewReport={handleViewReport} companyData={companyData} />;
+      case 'history': return <PayrollHistory userId={user?.uid} onViewReport={handleViewReport} />;
+      case 'report_general': return <GeneralReportView data={reportData} onViewHolerites={() => setView('print_holerites')} onBack={() => setView('history')} companyData={companyData} />;
       case 'print_holerites': return <HoleriteView data={reportData} onBack={() => setView('report_general')} companyData={companyData} />;
       case 'settings': return <CompanySettings userId={user?.uid} currentData={companyData} onSave={() => setView('dashboard')} />;
       default: return <Dashboard changeView={setView} employees={employees} userId={user?.uid} />;
@@ -185,9 +160,9 @@ export default function App() {
             </div>
           </div>
           <nav className="hidden md:flex gap-1 bg-white/10 p-1 rounded-xl backdrop-blur-md border border-white/10">
-            {['dashboard', 'employees', 'payroll'].map((v) => (
+            {['dashboard', 'employees', 'payroll', 'history'].map((v) => (
               <button key={v} onClick={() => setView(v)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${view === v ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-100 hover:bg-white/5'}`}>
-                {v === 'dashboard' ? 'Início' : v === 'employees' ? 'Equipe' : 'Pagamentos'}
+                {v === 'dashboard' ? 'Início' : v === 'employees' ? 'Equipe' : v === 'payroll' ? 'Calcular' : 'Histórico'}
               </button>
             ))}
           </nav>
@@ -196,11 +171,10 @@ export default function App() {
             <button onClick={() => signOut(auth)} className="p-2 text-pink-300 hover:text-white hover:bg-red-500/20 rounded-lg transition"><LogOut size={20}/></button>
           </div>
         </div>
-        {/* Mobile Nav */}
         <div className="md:hidden flex justify-center mt-4 gap-4 text-sm font-bold border-t border-white/10 pt-2">
            <button onClick={() => setView('dashboard')} className={view==='dashboard' ? 'text-white' : 'text-blue-300'}>Início</button>
-           <button onClick={() => setView('employees')} className={view==='employees' ? 'text-white' : 'text-blue-300'}>Equipe</button>
-           <button onClick={() => setView('payroll')} className={view==='payroll' ? 'text-white' : 'text-blue-300'}>Pagamentos</button>
+           <button onClick={() => setView('payroll')} className={view==='payroll' ? 'text-white' : 'text-blue-300'}>Calcular</button>
+           <button onClick={() => setView('history')} className={view==='history' ? 'text-white' : 'text-blue-300'}>Histórico</button>
         </div>
       </header>
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6">{renderView()}</main>
@@ -219,122 +193,223 @@ function Dashboard({ changeView, employees, userId }) {
     try { await addDoc(collection(db, 'users', userId, 'advances'), { ...valeData, value: parseFloat(valeData.value), createdAt: new Date(), status: 'pending' }); alert("Vale lançado!"); setIsValeOpen(false); setValeData({ ...valeData, value: '', description: '' }); } catch (error) { alert("Erro: " + error.message); }
   };
 
-  // Stats
   const totalEmployees = employees.length;
   const totalPayrollEstimate = employees.reduce((acc, emp) => acc + emp.baseValue, 0);
 
   return (
     <div className="space-y-8 animate-slide-up">
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-800">Visão Geral</h2>
-          <p className="text-slate-500 mt-1">Bem-vindo ao painel de controle da sua empresa.</p>
-        </div>
-        <div className="text-right hidden md:block">
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data de Hoje</p>
-          <p className="text-xl font-bold text-slate-700">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-        </div>
+        <div><h2 className="text-3xl font-bold text-slate-800">Visão Geral</h2><p className="text-slate-500 mt-1">Bem-vindo ao painel de controle.</p></div>
+        <div className="text-right hidden md:block"><p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Data de Hoje</p><p className="text-xl font-bold text-slate-700">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div>
       </div>
-
-      {/* STATS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-blue-100 text-sm font-medium mb-1">Funcionários Ativos</p>
-              <h3 className="text-4xl font-bold">{totalEmployees}</h3>
-            </div>
-            <div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div>
-          </div>
-          <div className="mt-4 text-xs text-blue-100 bg-white/10 inline-block px-2 py-1 rounded">Equipe completa</div>
+          <div className="flex justify-between items-start"><div><p className="text-blue-100 text-sm font-medium mb-1">Funcionários Ativos</p><h3 className="text-4xl font-bold">{totalEmployees}</h3></div><div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div></div>
         </Card>
-
         <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-emerald-100 text-sm font-medium mb-1">Folha Estimada</p>
-              <h3 className="text-4xl font-bold">R$ {totalPayrollEstimate.toLocaleString('pt-BR', {maximumFractionDigits:0})}</h3>
-            </div>
-            <div className="bg-white/20 p-2 rounded-lg"><DollarSign size={24}/></div>
-          </div>
-          <div className="mt-4 text-xs text-emerald-100 bg-white/10 inline-block px-2 py-1 rounded">Base mensal fixa</div>
+          <div className="flex justify-between items-start"><div><p className="text-emerald-100 text-sm font-medium mb-1">Folha Estimada</p><h3 className="text-4xl font-bold">R$ {totalPayrollEstimate.toLocaleString('pt-BR', {maximumFractionDigits:0})}</h3></div><div className="bg-white/20 p-2 rounded-lg"><DollarSign size={24}/></div></div>
         </Card>
-
         <Card onClick={() => setIsValeOpen(true)} className="bg-gradient-to-br from-orange-400 to-pink-500 text-white border-none cursor-pointer group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-orange-100 text-sm font-medium mb-1">Ação Rápida</p>
-              <h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Lançar Vale</h3>
-            </div>
-            <div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><Receipt size={24}/></div>
-          </div>
-          <div className="mt-4 text-xs text-orange-100 bg-white/10 inline-block px-2 py-1 rounded">Adiantamentos / Compras</div>
+          <div className="flex justify-between items-start"><div><p className="text-orange-100 text-sm font-medium mb-1">Ação Rápida</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Lançar Vale</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><Receipt size={24}/></div></div>
         </Card>
       </div>
-
-      {/* MAIN ACTIONS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card onClick={() => changeView('employees')} className="group">
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={32}/></div>
-            <div><h3 className="text-xl font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-sm">Adicionar, editar ou remover colaboradores.</p></div>
-            <div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition"><ArrowRight size={20}/></div>
-          </div>
+          <div className="flex items-center gap-4"><div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-sm">Adicionar, editar ou remover colaboradores.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition"><ArrowRight size={20}/></div></div>
         </Card>
         <Card onClick={() => changeView('payroll')} className="group">
-          <div className="flex items-center gap-4">
-            <div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div>
-            <div><h3 className="text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha, horas extras e imprimir recibos.</p></div>
-            <div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition"><ArrowRight size={20}/></div>
-          </div>
+          <div className="flex items-center gap-4"><div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha e salvar histórico.</p></div><div className="ml-auto bg-slate-50 p-2 rounded-full text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 transition"><ArrowRight size={20}/></div></div>
         </Card>
       </div>
+      {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar</Button></div></form></div></div> )}
+    </div>
+  );
+}
 
-      {isValeOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3>
-            <form onSubmit={handleSaveVale} className="space-y-4">
-              <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div>
-              <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div>
-              <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento quinzenal"/></div>
-              <div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar Lançamento</Button></div>
-            </form>
-          </div>
+// --- HISTÓRICO DE PAGAMENTOS ---
+function PayrollHistory({ userId, onViewReport }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Busca as folhas de pagamento salvas, ordenadas da mais recente para a antiga
+    const q = query(collection(db, 'users', userId, 'payrolls'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [userId]);
+
+  const handleDelete = async (id) => {
+    if(confirm("Tem certeza? Isso apagará este histórico para sempre.")) {
+      await deleteDoc(doc(db, 'users', userId, 'payrolls', id));
+    }
+  };
+
+  const formatDate = (dateString) => dateString ? dateString.split('-').reverse().join('/') : '';
+  const formatMoney = (val) => Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  return (
+    <div className="max-w-5xl mx-auto animate-fade-in">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><History className="text-blue-600"/> Histórico de Pagamentos</h2>
+      </div>
+
+      {loading ? <div className="text-center py-10 text-slate-500">Carregando histórico...</div> : (
+        <div className="grid gap-4">
+          {history.length === 0 && <div className="text-center py-10 bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">Nenhum pagamento salvo ainda.</div>}
+          
+          {history.map(item => (
+            <Card key={item.id} className="flex flex-col md:flex-row items-center justify-between gap-4 group hover:border-blue-200">
+              <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className="bg-green-100 p-3 rounded-full text-green-600"><CheckCircle size={24}/></div>
+                <div>
+                  <h4 className="font-bold text-lg text-slate-800">Pagamento de {new Date(item.createdAt?.seconds * 1000).toLocaleDateString('pt-BR', {month:'long', year:'numeric'})}</h4>
+                  <div className="flex gap-3 text-sm text-slate-500 mt-1">
+                    <span className="flex items-center gap-1"><Calendar size={14}/> Ref: {formatDate(item.startDate)} a {formatDate(item.endDate)}</span>
+                    <span className="flex items-center gap-1"><Users size={14}/> {item.items?.length || 0} func.</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-6 w-full md:w-auto justify-between">
+                <div className="text-right">
+                  <p className="text-xs text-slate-400 font-bold uppercase">Total Pago</p>
+                  <p className="text-xl font-bold text-slate-700">{formatMoney(item.total)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => onViewReport(item)} className="px-4"><Eye size={18}/> Ver Detalhes</Button>
+                  <button onClick={() => handleDelete(item.id)} className="p-2 text-slate-300 hover:text-red-500 transition"><Trash2 size={18}/></button>
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// --- CONFIGURAÇÕES & IMPORTADOR ---
-function CompanySettings({ userId, currentData, onSave }) {
-  const [formData, setFormData] = useState({ name: '', cnpj: '', address: '', phone: '', logoUrl: '' });
-  const [importing, setImporting] = useState(false);
+// --- CALCULADORA (AGORA SALVA NO BANCO) ---
+function PayrollCalculator({ employees, advances, userId, onViewReport, companyData }) {
+  const [inputs, setInputs] = useState({});
+  const [dates, setDates] = useState({ start: '', end: '' });
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (currentData) setFormData(currentData); }, [currentData]);
+  const handleInputChange = (id, field, value) => setInputs(p => ({ ...p, [id]: { ...p[id], [field]: parseFloat(value) || 0 } }));
   
-  const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
-
-  const handleImportEmployees = async () => {
-    if(!confirm("Deseja importar os 20 funcionários da planilha para sua base?")) return;
-    setImporting(true);
-    try {
-      const batchPromises = EMPLOYEES_FROM_SHEET.map(emp => 
-        addDoc(collection(db, 'users', userId, 'employees'), {
-          ...emp,
-          type: 'diarista', // Baseado na planilha 'VALOR DIARIA'
-          createdAt: new Date()
-        })
-      );
-      await Promise.all(batchPromises);
-      alert("Sucesso! 20 Funcionários importados.");
-    } catch (error) {
-      alert("Erro na importação: " + error.message);
-    }
-    setImporting(false);
+  const handleOvertimeHoursChange = (id, hours, emp) => {
+    const h = parseFloat(hours) || 0;
+    const daily = emp.type === 'mensalista' ? (emp.baseValue / 30) : emp.baseValue;
+    const hourly = daily / (emp.workHoursPerDay || 8);
+    setInputs(p => ({ ...p, [id]: { ...p[id], overtimeHours: h, overtime: parseFloat((hourly * h).toFixed(2)) } }));
   };
 
+  const handleApplyAdvances = (empId, total, list) => {
+    if(confirm(`Descontar R$ ${total.toFixed(2)}?`)) setInputs(p => ({ ...p, [empId]: { ...p[empId], discount: (p[empId]?.discount || 0) + total, advancesIncluded: list } }));
+  };
+
+  const getPending = (empId) => {
+    if (!dates.start) return { total: 0, list: [] };
+    const list = advances.filter(a => a.employeeId === empId && a.targetMonth === dates.start.slice(0,7) && a.status === 'pending');
+    return { total: list.reduce((acc, c) => acc + c.value, 0), list };
+  };
+
+  const getVals = (emp) => {
+    const d = inputs[emp.id] || {};
+    const dailyRate = emp.type === 'mensalista' ? (emp.baseValue/30) : emp.baseValue;
+    const gross = dailyRate * (d.days || 0);
+    return { ...d, grossTotal: gross, netTotal: gross + (d.bonus||0) + (d.overtime||0) - (d.discount||0), advancesIncluded: d.advancesIncluded || [] };
+  };
+
+  const totalPayroll = employees.reduce((acc, emp) => acc + getVals(emp).netTotal, 0);
+
+  const saveAndGenerate = async () => {
+    if (!dates.start || !dates.end) return alert("Selecione o período.");
+    if(!companyData?.name) alert("Atenção: Configure a empresa antes!");
+    
+    const items = employees.map(e => ({ ...e, ...getVals(e), dailyRate: e.type === 'mensalista' ? (e.baseValue/30) : e.baseValue })).filter(i => i.days > 0 || i.netTotal > 0);
+    
+    if (items.length === 0) return alert("Preencha os dados de pelo menos um funcionário.");
+
+    setSaving(true);
+    try {
+      // 1. Monta o objeto da folha
+      const payrollData = {
+        startDate: dates.start,
+        endDate: dates.end,
+        total: totalPayroll,
+        items: items,
+        createdAt: new Date(),
+        createdBy: userId
+      };
+
+      // 2. Salva no Firestore (Histórico)
+      await addDoc(collection(db, 'users', userId, 'payrolls'), payrollData);
+
+      // 3. Atualiza status dos vales para "deducted" (descontado) se tiver
+      // (Implementação futura para automatizar baixa de vale)
+
+      // 4. Gera visualização
+      onViewReport(payrollData);
+
+    } catch (error) {
+      alert("Erro ao salvar folha: " + error.message);
+    }
+    setSaving(false);
+  };
+
+  const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
+      <Card>
+        <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8 border-b border-slate-100 pb-6">
+          <div><h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Calculator className="text-blue-600"/> Calcular Folha</h2><p className="text-slate-500 text-sm mt-1">Defina o período e preencha os dados variáveis.</p></div>
+          <div className="flex gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200"><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Início</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" onChange={e => setDates({...dates, start: e.target.value})}/></div><div className="w-px bg-slate-300"></div><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Fim</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" onChange={e => setDates({...dates, end: e.target.value})}/></div></div>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold"><tr><th className="p-4">Colaborador</th><th className="p-4 w-20 text-center">Dias</th><th className="p-4 w-24 text-center">Hrs Ext</th><th className="p-4 w-32 text-right">R$ Extra</th><th className="p-4 w-32 text-right">Bônus</th><th className="p-4 w-32 text-right">Desc.</th><th className="p-4 w-40 text-right bg-blue-50/50">Líquido</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {employees.map(emp => {
+                const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0;
+                return (
+                  <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4"><div className="font-bold text-slate-700">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>{p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-bold hover:bg-orange-200 transition"><AlertTriangle size={12}/> Vale: {money(p.total)}</div>} {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold"><CheckCircle size={12}/> Descontado</div>}</td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-right font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none" value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border border-emerald-200 bg-emerald-50/50 rounded-lg text-right font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
+                    <td className="p-4"><input type="number" className="w-full p-2 border border-red-200 bg-red-50/50 rounded-lg text-right font-bold text-red-600 focus:ring-2 focus:ring-red-500 outline-none" value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/></td>
+                    <td className="p-4 text-right bg-blue-50/30"><span className="font-mono font-bold text-lg text-slate-800">{money(v.netTotal)}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-6 flex justify-end items-center gap-4">
+          <div className="text-right mr-4">
+            <p className="text-xs text-slate-400 uppercase font-bold">Total Previsto</p>
+            <p className="text-2xl font-bold text-slate-800">{money(totalPayroll)}</p>
+          </div>
+          <Button onClick={saveAndGenerate} disabled={saving} className="shadow-xl px-8 py-3 text-lg">
+            {saving ? 'Salvando...' : <><Printer size={20}/> Salvar e Gerar Documentos</>}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// --- CONFIGURAÇÕES E IMPORTADOR ---
+function CompanySettings({ userId, currentData, onSave }) {
+  const [formData, setFormData] = useState({ name: '', cnpj: '', address: '', phone: '', logoUrl: '' });
+  useEffect(() => { if (currentData) setFormData(currentData); }, [currentData]);
+  const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
+  
   return (
     <div className="max-w-2xl mx-auto animate-fade-in">
       <Card>
@@ -343,14 +418,6 @@ function CompanySettings({ userId, currentData, onSave }) {
           <div><label className="block text-sm font-bold mb-1">Nome da Empresa</label><input type="text" required className="w-full p-3 border rounded bg-slate-50" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Padaria do João"/></div>
           <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">CNPJ</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1">Telefone</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div></div>
           <div><label className="block text-sm font-bold mb-1">URL Logo</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})}/></div>
-          
-          <div className="pt-6 mt-6 border-t border-slate-100">
-            <h3 className="font-bold text-slate-500 mb-3 uppercase text-xs">Ferramentas Avançadas</h3>
-            <button type="button" onClick={handleImportEmployees} disabled={importing} className="w-full border-2 border-dashed border-emerald-300 bg-emerald-50 text-emerald-700 font-bold py-3 rounded-xl hover:bg-emerald-100 transition flex items-center justify-center gap-2">
-              {importing ? 'Importando...' : <><DownloadCloud size={20}/> Importar 20 Funcionários da Planilha</>}
-            </button>
-          </div>
-
           <div className="pt-4 flex gap-2 justify-end"><Button variant="secondary" type="button" onClick={onSave}>Voltar</Button><Button type="submit">Salvar</Button></div>
         </form>
       </Card>
@@ -398,80 +465,7 @@ function EmployeeManager({ employees, userId }) {
   );
 }
 
-// --- CALCULADORA ---
-function PayrollCalculator({ employees, advances, onGenerate, companyData }) {
-  const [inputs, setInputs] = useState({});
-  const [dates, setDates] = useState({ start: '', end: '' });
-  const handleInputChange = (id, field, value) => setInputs(p => ({ ...p, [id]: { ...p[id], [field]: parseFloat(value) || 0 } }));
-  
-  const handleOvertimeHoursChange = (id, hours, emp) => {
-    const h = parseFloat(hours) || 0;
-    const daily = emp.type === 'mensalista' ? (emp.baseValue / 30) : emp.baseValue;
-    const hourly = daily / (emp.workHoursPerDay || 8);
-    setInputs(p => ({ ...p, [id]: { ...p[id], overtimeHours: h, overtime: parseFloat((hourly * h).toFixed(2)) } }));
-  };
-
-  const handleApplyAdvances = (empId, total, list) => {
-    if(confirm(`Descontar R$ ${total.toFixed(2)}?`)) setInputs(p => ({ ...p, [empId]: { ...p[empId], discount: (p[empId]?.discount || 0) + total, advancesIncluded: list } }));
-  };
-
-  const getPending = (empId) => {
-    if (!dates.start) return { total: 0, list: [] };
-    const list = advances.filter(a => a.employeeId === empId && a.targetMonth === dates.start.slice(0,7) && a.status === 'pending');
-    return { total: list.reduce((acc, c) => acc + c.value, 0), list };
-  };
-
-  const getVals = (emp) => {
-    const d = inputs[emp.id] || {};
-    const dailyRate = emp.type === 'mensalista' ? (emp.baseValue/30) : emp.baseValue;
-    const gross = dailyRate * (d.days || 0);
-    return { ...d, grossTotal: gross, netTotal: gross + (d.bonus||0) + (d.overtime||0) - (d.discount||0), advancesIncluded: d.advancesIncluded || [] };
-  };
-
-  const calculate = () => {
-    if (!dates.start || !dates.end) return alert("Selecione datas.");
-    if(!companyData?.name) alert("Atenção: Configure a empresa antes!");
-    const items = employees.map(e => ({ ...e, ...getVals(e), dailyRate: e.type === 'mensalista' ? (e.baseValue/30) : e.baseValue })).filter(i => i.days > 0 || i.netTotal > 0);
-    if (items.length === 0) return alert("Preencha algo.");
-    onGenerate({ startDate: dates.start, endDate: dates.end, items });
-  };
-
-  const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-
-  return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
-      <Card>
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8 border-b border-slate-100 pb-6">
-          <div><h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Calculator className="text-blue-600"/> Calcular Folha</h2><p className="text-slate-500 text-sm mt-1">Defina o período e preencha os dados variáveis.</p></div>
-          <div className="flex gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200"><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Início</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" onChange={e => setDates({...dates, start: e.target.value})}/></div><div className="w-px bg-slate-300"></div><div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Fim</label><input type="date" className="bg-transparent font-bold text-slate-700 outline-none" onChange={e => setDates({...dates, end: e.target.value})}/></div></div>
-        </div>
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold"><tr><th className="p-4">Colaborador</th><th className="p-4 w-20 text-center">Dias</th><th className="p-4 w-24 text-center">Hrs Ext</th><th className="p-4 w-32 text-right">R$ Extra</th><th className="p-4 w-32 text-right">Bônus</th><th className="p-4 w-32 text-right">Desc.</th><th className="p-4 w-40 text-right bg-blue-50/50">Líquido</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">
-              {employees.map(emp => {
-                const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0;
-                return (
-                  <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4"><div className="font-bold text-slate-700">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>{p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-bold hover:bg-orange-200 transition"><AlertTriangle size={12}/> Vale: {money(p.total)}</div>} {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold"><CheckCircle size={12}/> Descontado</div>}</td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-blue-200 bg-blue-50/50 rounded-lg text-right font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none" value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-emerald-200 bg-emerald-50/50 rounded-lg text-right font-bold text-emerald-600 focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
-                    <td className="p-4"><input type="number" className="w-full p-2 border border-red-200 bg-red-50/50 rounded-lg text-right font-bold text-red-600 focus:ring-2 focus:ring-red-500 outline-none" value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/></td>
-                    <td className="p-4 text-right bg-blue-50/30"><span className="font-mono font-bold text-lg text-slate-800">{money(v.netTotal)}</span></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="mt-6 flex justify-end"><Button onClick={calculate} className="shadow-xl px-8 py-3 text-lg">Gerar Documentos <ArrowRight size={20}/></Button></div>
-      </Card>
-    </div>
-  );
-}
-
+// --- REPORT VIEWS ---
 function GeneralReportView({ data, onViewHolerites, onBack, companyData }) {
   const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
   const date = (d) => d ? d.split('-').reverse().join('/') : '';
