@@ -11,7 +11,7 @@ import {
   Users, Calculator, FileText, Plus, Trash2, 
   Printer, Calendar, ArrowLeft, Table, ArrowRight, Pencil, 
   Receipt, AlertTriangle, CheckCircle, LogOut, Lock, Settings, Building2,
-  TrendingUp, DollarSign, Send, Copy, Check
+  TrendingUp, DollarSign, Send, Copy, Check, DownloadCloud
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO FIXA DO FIREBASE ---
@@ -28,6 +28,30 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// --- LISTA DE FUNCIONÁRIOS DA PLANILHA (BACKUP) ---
+const EMPLOYEES_FROM_SHEET = [
+  {name: "DHAMERSON RENAN GOMES", role: "ANALISTA DE ECOMMERCE", baseValue: 171.72, pix: "45990762879", workHoursPerDay: 8},
+  {name: "OLAIR FERREIRA CINTRA", role: "PESPONTADOR", baseValue: 106.70, pix: "16991194786", workHoursPerDay: 8},
+  {name: "IRACI CORREIA", role: "CORTADOR", baseValue: 150.00, pix: "16991801098", workHoursPerDay: 8},
+  {name: "APARECIDO", role: "CORTADOR", baseValue: 150.00, pix: "", workHoursPerDay: 8},
+  {name: "GUSTAVO GABRIEL OLIVEIRA", role: "AUXILIAR DE PRODUÇÃO", baseValue: 100.00, pix: "16992936523", workHoursPerDay: 8},
+  {name: "GUILHERME OLIVEIRA MATOS", role: "AUXILIAR ECOMMERCE", baseValue: 62.66, pix: "581.846.488.12 - INTER", workHoursPerDay: 8},
+  {name: "DAVI GABRIEL DE FREITAS", role: "APONTADOR DE SOLA", baseValue: 166.19, pix: "44075320847", workHoursPerDay: 8},
+  {name: "ANTONIO EXPEDITO", role: "MONTADOR", baseValue: 133.00, pix: "5721232803", workHoursPerDay: 8},
+  {name: "JARBAS JOSE BATISTA", role: "CORTADOR", baseValue: 150.00, pix: "16994238977", workHoursPerDay: 8},
+  {name: "GUILERME MORETTI SILVA", role: "AUXILIAR", baseValue: 100.00, pix: "16992672495", workHoursPerDay: 8},
+  {name: "FERNADO ALVES RANIELI", role: "FECHADOR DE LADO", baseValue: 133.33, pix: "27392484826", workHoursPerDay: 8},
+  {name: "JULIO CESAR MOLINA", role: "AUXILIAR DE EOMERCE", baseValue: 100.00, pix: "39111177870", workHoursPerDay: 8},
+  {name: "DANILO FELICIANO DE OLIVEIRA", role: "REVISOR", baseValue: 122.00, pix: "31475854846", workHoursPerDay: 8},
+  {name: "TIAGO GARCIA DAS NEVES", role: "MOLINEIRO", baseValue: 161.00, pix: "265.074.938.56 - MP", workHoursPerDay: 8},
+  {name: "MARCO ANTONIO OLIVEIRA INACIO", role: "AUXILIAR", baseValue: 114.28, pix: "16997109877", workHoursPerDay: 8},
+  {name: "ADRIANO CESAR GABRIEL", role: "ACABADOR", baseValue: 152.00, pix: "16981627406", workHoursPerDay: 8},
+  {name: "DIEGO MAZZALI", role: "APONTADOR DE SOLA", baseValue: 142.00, pix: "29677051873", workHoursPerDay: 8},
+  {name: "ALEX BENTO", role: "GERENTE", baseValue: 238.00, pix: "", workHoursPerDay: 8},
+  {name: "EDUARDO HENRIQUE SILVA", role: "AUXILIAR", baseValue: 123.80, pix: "EDUARDOHEYTOR19@GMAIL.COM", workHoursPerDay: 8},
+  {name: "SERGIO MESSIAS", role: "PLANEJAMENTO", baseValue: 164.00, pix: "13859745832", workHoursPerDay: 8}
+];
 
 // --- UI COMPONENTS (Design System) ---
 const Card = ({ children, className = "", onClick }) => (
@@ -184,6 +208,7 @@ export default function App() {
   );
 }
 
+// --- DASHBOARD ---
 function Dashboard({ changeView, employees, userId }) {
   const [isValeOpen, setIsValeOpen] = useState(false);
   const [valeData, setValeData] = useState({ employeeId: '', value: '', description: '', targetMonth: new Date().toISOString().slice(0, 7) });
@@ -282,6 +307,58 @@ function Dashboard({ changeView, employees, userId }) {
   );
 }
 
+// --- CONFIGURAÇÕES & IMPORTADOR ---
+function CompanySettings({ userId, currentData, onSave }) {
+  const [formData, setFormData] = useState({ name: '', cnpj: '', address: '', phone: '', logoUrl: '' });
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => { if (currentData) setFormData(currentData); }, [currentData]);
+  
+  const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
+
+  const handleImportEmployees = async () => {
+    if(!confirm("Deseja importar os 20 funcionários da planilha para sua base?")) return;
+    setImporting(true);
+    try {
+      const batchPromises = EMPLOYEES_FROM_SHEET.map(emp => 
+        addDoc(collection(db, 'users', userId, 'employees'), {
+          ...emp,
+          type: 'diarista', // Baseado na planilha 'VALOR DIARIA'
+          createdAt: new Date()
+        })
+      );
+      await Promise.all(batchPromises);
+      alert("Sucesso! 20 Funcionários importados.");
+    } catch (error) {
+      alert("Erro na importação: " + error.message);
+    }
+    setImporting(false);
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto animate-fade-in">
+      <Card>
+        <h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><Building2 className="text-blue-600"/> Configurações</h2>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div><label className="block text-sm font-bold mb-1">Nome da Empresa</label><input type="text" required className="w-full p-3 border rounded bg-slate-50" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Padaria do João"/></div>
+          <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">CNPJ</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1">Telefone</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div></div>
+          <div><label className="block text-sm font-bold mb-1">URL Logo</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})}/></div>
+          
+          <div className="pt-6 mt-6 border-t border-slate-100">
+            <h3 className="font-bold text-slate-500 mb-3 uppercase text-xs">Ferramentas Avançadas</h3>
+            <button type="button" onClick={handleImportEmployees} disabled={importing} className="w-full border-2 border-dashed border-emerald-300 bg-emerald-50 text-emerald-700 font-bold py-3 rounded-xl hover:bg-emerald-100 transition flex items-center justify-center gap-2">
+              {importing ? 'Importando...' : <><DownloadCloud size={20}/> Importar 20 Funcionários da Planilha</>}
+            </button>
+          </div>
+
+          <div className="pt-4 flex gap-2 justify-end"><Button variant="secondary" type="button" onClick={onSave}>Voltar</Button><Button type="submit">Salvar</Button></div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+// --- GERENCIADOR DE FUNCIONÁRIOS ---
 function EmployeeManager({ employees, userId }) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -307,7 +384,7 @@ function EmployeeManager({ employees, userId }) {
                 <div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} /></div>
                 <div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo</label><input type="text" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} /></div>
                 <div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo Contrato</label><select className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}><option value="mensalista">Mensalista</option><option value="diarista">Diarista</option></select></div>
-                <div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Salário Base (R$)</label><input type="number" step="0.01" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.baseValue} onChange={e => setFormData({...formData, baseValue: e.target.value})} /></div>
+                <div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor Diária/Mês (R$)</label><input type="number" step="0.01" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.baseValue} onChange={e => setFormData({...formData, baseValue: e.target.value})} /></div>
                 <div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Horas/Dia</label><input type="number" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.workHoursPerDay} onChange={e => setFormData({...formData, workHoursPerDay: e.target.value})} /></div>
                 <div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Chave PIX</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.pix} onChange={e => setFormData({...formData, pix: e.target.value})} /></div>
               </div>
@@ -321,6 +398,7 @@ function EmployeeManager({ employees, userId }) {
   );
 }
 
+// --- CALCULADORA ---
 function PayrollCalculator({ employees, advances, onGenerate, companyData }) {
   const [inputs, setInputs] = useState({});
   const [dates, setDates] = useState({ start: '', end: '' });
@@ -473,15 +551,5 @@ function HoleriteView({ data, onBack, companyData }) {
         );})}
       </div>
     </div>
-  );
-}
-
-// --- CONFIGURAÇÃO DA EMPRESA ---
-function CompanySettings({ userId, currentData, onSave }) {
-  const [formData, setFormData] = useState({ name: '', cnpj: '', address: '', phone: '', logoUrl: '' });
-  useEffect(() => { if (currentData) setFormData(currentData); }, [currentData]);
-  const handleSave = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
-  return (
-    <div className="max-w-2xl mx-auto animate-fade-in"><Card><h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><Building2 className="text-blue-600"/> Configurações</h2><form onSubmit={handleSave} className="space-y-4"><div><label className="block text-sm font-bold mb-1">Nome da Empresa</label><input type="text" required className="w-full p-3 border rounded bg-slate-50" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Padaria do João"/></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">CNPJ</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1">Telefone</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div></div><div><label className="block text-sm font-bold mb-1">URL Logo</label><input type="text" className="w-full p-3 border rounded bg-slate-50" value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})}/></div><div className="pt-4 flex gap-2 justify-end"><Button variant="secondary" type="button" onClick={onSave}>Voltar</Button><Button type="submit">Salvar</Button></div></form></Card></div>
   );
 }
