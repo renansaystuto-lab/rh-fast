@@ -5,13 +5,14 @@ import {
   doc, deleteDoc, updateDoc, setDoc 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut 
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut,
+  updateEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential
 } from 'firebase/auth';
 import { 
   Users, Calculator, FileText, Plus, Trash2, 
   Printer, Calendar, ArrowLeft, Table, ArrowRight, Pencil, 
   Receipt, AlertTriangle, CheckCircle, LogOut, Lock, Settings, Building2,
-  DollarSign, Copy, Send
+  DollarSign, Copy, Send, Shield
 } from 'lucide-react';
 
 // --- SUA CONFIGURAÇÃO FIXA DO FIREBASE ---
@@ -139,7 +140,7 @@ export default function App() {
       case 'payroll': return <PayrollCalculator employees={employees} advances={advances} onGenerate={handleGenerateReport} companyData={companyData} />;
       case 'report_general': return <GeneralReportView data={reportData} onViewHolerites={() => setView('print_holerites')} onBack={() => setView('payroll')} companyData={companyData} />;
       case 'print_holerites': return <HoleriteView data={reportData} onBack={() => setView('report_general')} companyData={companyData} />;
-      case 'settings': return <CompanySettings userId={user?.uid} currentData={companyData} onSave={() => setView('dashboard')} />;
+      case 'settings': return <CompanySettings userId={user?.uid} currentData={companyData} onSave={() => setView('dashboard')} currentUser={user} />;
       default: return <Dashboard changeView={setView} employees={employees} userId={user?.uid} />;
     }
   };
@@ -183,14 +184,17 @@ export default function App() {
   );
 }
 
-// --- TELA DE CONFIGURAÇÃO (CORRIGIDA) ---
-function CompanySettings({ userId, currentData, onSave }) {
-  // Inicializa com campos vazios para não dar erro
+// --- TELA DE CONFIGURAÇÃO (Com Mudança de Senha/Email) ---
+function CompanySettings({ userId, currentData, onSave, currentUser }) {
   const [formData, setFormData] = useState({
     name: '', cnpj: '', address: '', phone: '', logoUrl: ''
   });
+  
+  // Estado para a área de segurança
+  const [securityData, setSecurityData] = useState({
+    newEmail: '', newPassword: '', currentPassword: ''
+  });
 
-  // Atualiza com dados do banco, garantindo que nenhum campo seja 'undefined'
   useEffect(() => {
     if (currentData) {
       setFormData({
@@ -203,36 +207,107 @@ function CompanySettings({ userId, currentData, onSave }) {
     }
   }, [currentData]);
 
-  const handleSave = async (e) => {
+  // Salvar dados da empresa
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
       await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData);
-      alert("Configurações salvas com sucesso!");
+      alert("Configurações da empresa salvas!");
       onSave();
     } catch (error) { alert("Erro ao salvar: " + error.message); }
   };
 
+  // Salvar dados de login (Email/Senha)
+  const handleUpdateSecurity = async (e) => {
+    e.preventDefault();
+    if (!securityData.currentPassword) return alert("Por segurança, digite sua senha atual para confirmar as alterações.");
+    if (!securityData.newEmail && !securityData.newPassword) return alert("Preencha o novo e-mail ou a nova senha.");
+
+    try {
+      // 1. Reautenticar o usuário para garantir que é ele mesmo
+      const credential = EmailAuthProvider.credential(currentUser.email, securityData.currentPassword);
+      await reauthenticateWithCredential(currentUser, credential);
+
+      // 2. Atualizar E-mail se tiver preenchido
+      if (securityData.newEmail && securityData.newEmail !== currentUser.email) {
+        await updateEmail(currentUser, securityData.newEmail);
+      }
+
+      // 3. Atualizar Senha se tiver preenchido
+      if (securityData.newPassword) {
+        await updatePassword(currentUser, securityData.newPassword);
+      }
+
+      alert("Dados de acesso atualizados com sucesso!");
+      setSecurityData({ newEmail: '', newPassword: '', currentPassword: '' });
+      
+    } catch (error) {
+      console.error(error);
+      if (error.code === 'auth/wrong-password') {
+        alert("A senha atual digitada está incorreta.");
+      } else if (error.code === 'auth/requires-recent-login') {
+        alert("Por favor, saia e entre novamente no sistema para realizar essa alteração.");
+      } else {
+        alert("Erro ao atualizar: " + error.message);
+      }
+    }
+  };
+
   return (
-    <div className="max-w-2xl mx-auto animate-fade-in">
+    <div className="max-w-4xl mx-auto animate-fade-in space-y-8">
+      
+      {/* CARTÃO 1: DADOS DA EMPRESA */}
       <Card>
-        <h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><Building2 className="text-blue-600"/> Configurações da Empresa</h2>
-        <form onSubmit={handleSave} className="space-y-4">
+        <h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><Building2 className="text-blue-600"/> Dados da Empresa</h2>
+        <form onSubmit={handleSaveProfile} className="space-y-4">
           <div><label className="block text-sm font-bold mb-1">Razão Social / Nome</label><input type="text" required className="w-full p-3 border rounded-lg bg-slate-50" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Padaria do João Ltda"/></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className="block text-sm font-bold mb-1">CNPJ</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} placeholder="00.000.000/0001-00"/></div>
             <div><label className="block text-sm font-bold mb-1">Telefone</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div>
           </div>
           <div><label className="block text-sm font-bold mb-1">Endereço</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}/></div>
           <div><label className="block text-sm font-bold mb-1">URL da Logo</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})} placeholder="https://..."/></div>
           <div className="pt-4 flex gap-2 justify-end">
-            <Button variant="secondary" type="button" onClick={onSave}>Cancelar</Button>
-            <Button type="submit">Salvar Alterações</Button>
+            <Button variant="secondary" type="button" onClick={onSave}>Voltar</Button>
+            <Button type="submit">Salvar Perfil</Button>
           </div>
         </form>
       </Card>
+
+      {/* CARTÃO 2: SEGURANÇA E ACESSO */}
+      <Card className="border-l-4 border-l-orange-500">
+        <h2 className="text-2xl font-bold text-slate-700 mb-2 flex items-center gap-2"><Shield className="text-orange-500"/> Segurança e Acesso</h2>
+        <p className="text-sm text-slate-500 mb-6">Altere aqui o e-mail de login ou sua senha de acesso ao sistema.</p>
+        
+        <form onSubmit={handleUpdateSecurity} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold mb-1 text-slate-600">Novo E-mail (Opcional)</label>
+              <input type="email" className="w-full p-3 border rounded-lg bg-white focus:ring-2 focus:ring-orange-500 outline-none" value={securityData.newEmail} onChange={e => setSecurityData({...securityData, newEmail: e.target.value})} placeholder={currentUser.email} />
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-1 text-slate-600">Nova Senha (Opcional)</label>
+              <input type="password" className="w-full p-3 border rounded-lg bg-white focus:ring-2 focus:ring-orange-500 outline-none" value={securityData.newPassword} onChange={e => setSecurityData({...securityData, newPassword: e.target.value})} placeholder="********" />
+            </div>
+          </div>
+          
+          <div className="bg-orange-50 p-4 rounded-lg border border-orange-100 mt-4">
+            <label className="block text-sm font-bold mb-1 text-orange-800">Senha Atual (Obrigatório para confirmar)</label>
+            <input type="password" required className="w-full p-3 border border-orange-200 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 outline-none" value={securityData.currentPassword} onChange={e => setSecurityData({...securityData, currentPassword: e.target.value})} placeholder="Digite sua senha atual..." />
+            <p className="text-xs text-orange-600 mt-2">Para sua segurança, precisamos que você confirme sua senha atual antes de salvar alterações de acesso.</p>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <Button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white border-none shadow-orange-500/30">Atualizar Acesso</Button>
+          </div>
+        </form>
+      </Card>
+
     </div>
   );
 }
+
+// --- DEMAIS COMPONENTES ---
 
 function Dashboard({ changeView, employees, userId }) {
   const [isValeOpen, setIsValeOpen] = useState(false);
