@@ -31,7 +31,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- UI COMPONENTS (DARK THEME) ---
+// --- UI COMPONENTS ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-2xl shadow-xl border border-slate-700 p-6 transition-all duration-300 ${onClick ? 'cursor-pointer hover:bg-slate-750 hover:border-slate-600 hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
     {children}
@@ -63,7 +63,7 @@ const Badge = ({ children, color = "blue" }) => {
   return <span className={`${colors[color]} border px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider`}>{children}</span>;
 };
 
-// --- LOGIN SCREEN (DARK MODE) ---
+// --- LOGIN SCREEN ---
 function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -107,7 +107,6 @@ export default function App() {
   const [reportData, setReportData] = useState(null); 
   const [loadingAuth, setLoadingAuth] = useState(true);
 
-  // Estados persistentes
   const [payrollInputs, setPayrollInputs] = useState({});
   const [payrollDates, setPayrollDates] = useState({ start: '', end: '' });
 
@@ -387,10 +386,32 @@ function HoleriteView({ data, onBack, companyData }) {
     );
   };
 
+  // Lógica de Paginação (2 por página)
+  const chunks = [];
+  for (let i = 0; i < data.items.length; i += 2) {
+    chunks.push(data.items.slice(i, i + 2));
+  }
+
   return (
     <div className="max-w-5xl mx-auto pb-20 animate-fade-in">
       <div className="bg-white p-4 rounded-xl shadow-lg mb-8 print:hidden flex justify-between items-center border border-slate-200"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button><Button onClick={() => window.print()}><Printer size={18} /> Imprimir Todos</Button></div>
-      <div className="print:w-full space-y-0">{data.items.map((item, index) => (<div key={index} className="print:break-after-page print:h-screen print:flex print:flex-col print:justify-between mb-8 bg-white p-8 print:p-0 shadow-xl print:shadow-none"><ReceiptCopy item={item} type="VIA DO COLABORADOR" /><div className="h-10 flex items-center justify-center relative print:my-2"><div className="w-full border-t-2 border-dashed border-gray-400 absolute"></div><Scissors className="bg-white text-gray-500 relative z-10 px-2 rotate-90" size={32} /></div><ReceiptCopy item={item} type="VIA DO EMPREGADOR" /></div>))}</div>
+      <div className="print:w-full space-y-0">
+        {chunks.map((chunk, pageIndex) => (
+          <div key={pageIndex} className="print:break-after-page print:h-screen print:flex print:flex-col print:justify-between mb-8 bg-white p-8 print:p-0 shadow-xl print:shadow-none">
+            {/* Primeira Via (Funcionário A) */}
+            <ReceiptCopy item={chunk[0]} type="RECIBO DE PAGAMENTO" />
+            
+            {/* Linha de Corte */}
+            <div className="h-10 flex items-center justify-center relative print:my-2">
+               <div className="w-full border-t-2 border-dashed border-gray-400 absolute"></div>
+               <Scissors className="bg-white text-gray-500 relative z-10 px-2 rotate-90" size={32} />
+            </div>
+
+            {/* Segunda Via (Funcionário B ou Vazio) */}
+            {chunk[1] ? <ReceiptCopy item={chunk[1]} type="RECIBO DE PAGAMENTO" /> : <div className="flex-1 border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300">ESPAÇO RESERVADO</div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
