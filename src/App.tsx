@@ -106,7 +106,6 @@ export default function App() {
   const [reportData, setReportData] = useState(null); 
   const [loadingAuth, setLoadingAuth] = useState(true);
 
-  // Estados persistentes
   const [payrollInputs, setPayrollInputs] = useState({});
   const [payrollDates, setPayrollDates] = useState({ start: '', end: '' });
 
@@ -162,234 +161,76 @@ export default function App() {
             <button onClick={() => signOut(auth)} className="p-2 text-pink-300 hover:text-white hover:bg-red-500/20 rounded-lg transition"><LogOut size={20}/></button>
           </div>
         </div>
+        <div className="md:hidden flex justify-center mt-4 gap-4 text-sm font-bold border-t border-white/10 pt-2">
+           <button onClick={() => setView('dashboard')} className={view==='dashboard' ? 'text-white' : 'text-blue-300'}>Início</button>
+           <button onClick={() => setView('employees')} className={view==='employees' ? 'text-white' : 'text-blue-300'}>Equipe</button>
+           <button onClick={() => setView('payroll')} className={view==='payroll' ? 'text-white' : 'text-blue-300'}>Pagamentos</button>
+        </div>
       </header>
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6">{renderView()}</main>
     </div>
   );
 }
 
-// --- HISTÓRICO DE PAGAMENTOS (NOVO) ---
+// --- DASHBOARD (AGORA COM 4 COLUNAS E VALE DE VOLTA) ---
+function Dashboard({ changeView, employees, userId }) {
+  const [isValeOpen, setIsValeOpen] = useState(false);
+  const [valeData, setValeData] = useState({ employeeId: '', value: '', description: '', targetMonth: new Date().toISOString().slice(0, 7) });
+
+  const handleSaveVale = async (e) => {
+    e.preventDefault();
+    if (!valeData.employeeId || !valeData.value) return alert("Preencha os dados.");
+    try { await addDoc(collection(db, 'users', userId, 'advances'), { ...valeData, value: parseFloat(valeData.value), createdAt: new Date(), status: 'pending' }); alert("Vale lançado!"); setIsValeOpen(false); setValeData({ ...valeData, value: '', description: '' }); } catch (error) { alert("Erro: " + error.message); }
+  };
+
+  const activeEmployees = employees.filter(e => e.status !== 'inactive');
+  const totalEmployees = activeEmployees.length;
+  const totalPayrollEstimate = activeEmployees.reduce((acc, emp) => acc + (emp.baseValue || 0), 0);
+
+  return (
+    <div className="space-y-8 animate-slide-up">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4"><div><h2 className="text-3xl font-bold text-slate-800">Visão Geral</h2><p className="text-slate-500 mt-1">Bem-vindo ao painel de controle.</p></div></div>
+      
+      {/* GRID DE 4 COLUNAS AGORA */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none"><div className="flex justify-between items-start"><div><p className="text-blue-100 text-xs font-bold uppercase mb-1">Colaboradores</p><h3 className="text-3xl font-bold">{totalEmployees}</h3></div><div className="bg-white/20 p-2 rounded-lg"><Users size={20}/></div></div></Card>
+        
+        <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none"><div className="flex justify-between items-start"><div><p className="text-emerald-100 text-xs font-bold uppercase mb-1">Folha Base</p><h3 className="text-3xl font-bold">R$ {totalPayrollEstimate.toLocaleString('pt-BR', {maximumFractionDigits:0})}</h3></div><div className="bg-white/20 p-2 rounded-lg"><DollarSign size={20}/></div></div></Card>
+        
+        {/* CARD VALE RESTAURADO */}
+        <Card onClick={() => setIsValeOpen(true)} className="bg-gradient-to-br from-orange-400 to-pink-500 text-white border-none cursor-pointer group"><div className="flex justify-between items-start"><div><p className="text-orange-100 text-xs font-bold uppercase mb-1">Ação Rápida</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Lançar Vale</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><Receipt size={20}/></div></div></Card>
+        
+        <Card onClick={() => changeView('history')} className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white border-none cursor-pointer group"><div className="flex justify-between items-start"><div><p className="text-purple-100 text-xs font-bold uppercase mb-1">Arquivo</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Histórico</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><History size={20}/></div></div></Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Card onClick={() => changeView('employees')} className="group"><div className="flex items-center gap-4"><div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-sm">Adicionar, editar ou desligar colaboradores.</p></div></div></Card><Card onClick={() => changeView('payroll')} className="group"><div className="flex items-center gap-4"><div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha, horas extras e imprimir recibos.</p></div></div></Card></div>
+      
+      {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{activeEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar</Button></div></form></div></div> )}
+    </div>
+  );
+}
+
+// --- HISTÓRICO DE PAGAMENTOS ---
 function PaymentHistory({ userId, onViewReport }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const q = query(collection(db, 'users', userId, 'payrolls'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snap) => {
-      setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [userId]);
-
-  const handleDelete = async (id) => {
-    if(confirm("Deseja apagar este registro do histórico?")) {
-      await deleteDoc(doc(db, 'users', userId, 'payrolls', id));
-    }
-  }
-
+  useEffect(() => { const q = query(collection(db, 'users', userId, 'payrolls'), orderBy('createdAt', 'desc')); const unsub = onSnapshot(q, (snap) => { setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); }); return () => unsub(); }, [userId]);
+  const handleDelete = async (id) => { if(confirm("Apagar registro?")) await deleteDoc(doc(db, 'users', userId, 'payrolls', id)); }
   const formatMoney = (v) => Number(v).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
   const formatDate = (d) => d ? d.split('-').reverse().join('/') : '';
-
-  if(loading) return <div className="p-10 text-center">Carregando histórico...</div>;
-
+  if(loading) return <div className="p-10 text-center">Carregando...</div>;
   return (
     <div className="max-w-5xl mx-auto animate-fade-in space-y-6">
-      <Card>
-        <h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><History className="text-blue-600"/> Histórico de Pagamentos</h2>
-        {history.length === 0 ? (
-          <div className="text-center py-10 text-slate-400">Nenhum pagamento fechado ainda.</div>
-        ) : (
-          <div className="space-y-4">
-            {history.map(item => (
-              <div key={item.id} className="border border-slate-200 rounded-xl p-4 flex justify-between items-center hover:shadow-md transition">
-                <div>
-                  <h4 className="font-bold text-lg text-slate-800">Folha: {formatDate(item.startDate)} à {formatDate(item.endDate)}</h4>
-                  <p className="text-sm text-slate-500">Fechado em: {new Date(item.createdAt?.seconds * 1000).toLocaleDateString()}</p>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <span className="text-xs uppercase font-bold text-slate-400">Total Pago</span>
-                    <p className="font-bold text-xl text-emerald-600">{formatMoney(item.totalValue)}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button onClick={() => onViewReport(item)} className="px-4"><Eye size={18}/> Ver</Button>
-                    <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      <Card><h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><History className="text-blue-600"/> Histórico de Pagamentos</h2>
+        {history.length === 0 ? (<div className="text-center py-10 text-slate-400">Nenhum pagamento fechado.</div>) : (
+          <div className="space-y-4">{history.map(item => (<div key={item.id} className="border border-slate-200 rounded-xl p-4 flex justify-between items-center hover:shadow-md transition"><div><h4 className="font-bold text-lg text-slate-800">Folha: {formatDate(item.startDate)} à {formatDate(item.endDate)}</h4><p className="text-sm text-slate-500">Fechado em: {new Date(item.createdAt?.seconds * 1000).toLocaleDateString()}</p></div><div className="flex items-center gap-6"><div className="text-right"><span className="text-xs uppercase font-bold text-slate-400">Total Pago</span><p className="font-bold text-xl text-emerald-600">{formatMoney(item.totalValue)}</p></div><div className="flex gap-2"><Button onClick={() => onViewReport(item)} className="px-4"><Eye size={18}/> Ver</Button><button onClick={() => handleDelete(item.id)} className="text-red-400 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button></div></div></div>))}</div>
         )}
       </Card>
     </div>
   );
 }
 
-// --- RELATÓRIO GERAL (COM BOTÃO DE SALVAR) ---
-function GeneralReportView({ data, onViewHolerites, onBack, companyData, userId }) {
-  const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-  const date = (d) => d ? d.split('-').reverse().join('/') : '';
-  const total = data.items.reduce((acc, i) => acc + (i.netTotal||0), 0);
-  const copyPix = (pix) => { navigator.clipboard.writeText(pix); alert("PIX copiado!"); };
-
-  const handleSaveHistory = async () => {
-    if(confirm("Deseja fechar esta folha e salvar no histórico?")) {
-      try {
-        await addDoc(collection(db, 'users', userId, 'payrolls'), {
-          ...data,
-          totalValue: total,
-          createdAt: new Date(),
-          closedBy: companyData?.name || 'Sistema'
-        });
-        alert("Folha salva com sucesso no Histórico!");
-      } catch(e) { alert("Erro ao salvar: " + e.message); }
-    }
-  };
-
-  return (
-    <div className="max-w-full mx-auto pb-20 animate-fade-in">
-      <div className="bg-white p-4 rounded-xl shadow-lg mb-6 print:hidden flex justify-between items-center border border-slate-200">
-        <div className="flex gap-2">
-          <button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button>
-          {!data.createdAt && ( // Só mostra o botão salvar se ainda não estiver salvo (não tiver data de criação)
-             <Button variant="success" onClick={handleSaveHistory}><Save size={18}/> Salvar Fechamento</Button>
-          )}
-        </div>
-        <div className="flex gap-3">
-          <Button variant="secondary" onClick={() => window.print()}><Printer size={18}/> Imprimir</Button>
-          <Button onClick={onViewHolerites}>Ver Holerites <ArrowRight size={18}/></Button>
-        </div>
-      </div>
-      
-      <div className="bg-white print:w-full shadow-2xl overflow-hidden rounded-lg">
-        <div className="bg-slate-900 text-white p-6 flex justify-between items-end"><div><h1 className="text-2xl font-bold uppercase tracking-wider">{companyData?.name}</h1><p className="text-slate-400 text-sm mt-1">Relatório Gerencial de Pagamentos</p></div><div className="text-right"><p className="text-slate-400 text-sm uppercase font-bold tracking-wider">Período</p><p className="text-xl font-bold">{date(data.startDate)} - {date(data.endDate)}</p></div></div>
-        <table className="w-full text-sm font-sans">
-          <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold border-b border-slate-200"><tr><th className="p-3 text-left pl-6">Colaborador</th><th className="p-3 text-center">Dias</th><th className="p-3 text-right">Base</th><th className="p-3 text-right">Bruto</th><th className="p-3 text-right text-red-500">Desc.</th><th className="p-3 text-right text-blue-500">Extra/Bônus</th><th className="p-3 text-right bg-blue-50/50">LÍQUIDO</th><th className="p-3 text-left w-48">PIX</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">
-            {data.items.map((i, idx) => (
-              <tr key={idx} className="hover:bg-slate-50">
-                <td className="p-3 pl-6"><div className="font-bold text-slate-700 uppercase">{i.name}</div><div className="text-[10px] text-slate-400 uppercase">{i.role}</div></td>
-                <td className="p-3 text-center"><Badge color="blue">{i.daysWorked}d</Badge></td>
-                <td className="p-3 text-right text-slate-500">{money(i.dailyRate)}</td>
-                <td className="p-3 text-right font-medium">{money(i.grossTotal)}</td>
-                <td className="p-3 text-right text-red-600 font-medium">{(i.discount||0)>0 ? `(${money(i.discount)})` : '-'}</td>
-                <td className="p-3 text-right text-blue-600 font-medium">{money((i.bonus||0)+(i.overtime||0))}</td>
-                <td className="p-3 text-right font-bold text-slate-800 bg-blue-50/50 text-base">{money(i.netTotal)}</td>
-                <td className="p-3 flex items-center gap-2 group"><span className="text-xs truncate max-w-[120px] block" title={i.pix}>{i.pix}</span>{i.pix && <button onClick={() => copyPix(i.pix)} className="opacity-0 group-hover:opacity-100 text-blue-500 hover:scale-110 transition"><Copy size={14}/></button>}</td>
-              </tr>
-            ))}
-            <tr className="bg-slate-800 text-white"><td colSpan="6" className="p-4 text-right uppercase font-bold tracking-wider text-sm">Total Geral da Folha:</td><td className="p-4 text-right font-bold text-xl bg-slate-700">{money(total)}</td><td></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// --- HOLERITE VIEW (2 VIAS POR PÁGINA) ---
-function HoleriteView({ data, onBack, companyData }) {
-  const money = (v) => Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
-  const date = (d) => d ? d.split('-').reverse().join('/') : '';
-  const empName = companyData?.name || 'EMPRESA'; const empCnpj = companyData?.cnpj || ''; const empLogo = companyData?.logoUrl;
-
-  const ReceiptCopy = ({ item, type }) => {
-    const totalAdvances = (item.advancesIncluded || []).reduce((acc, c) => acc + (c.value||0), 0);
-    const genericDiscount = (item.discount || 0) - totalAdvances;
-    
-    return (
-      <div className="border-2 border-black p-4 h-[13cm] relative flex flex-col justify-between text-xs font-sans text-black bg-white">
-        {/* Cabeçalho */}
-        <div className="border-b border-black pb-2 flex justify-between items-end">
-          <div className="flex items-center gap-3">
-            {empLogo && <img src={empLogo} alt="Logo" className="h-8 w-auto mix-blend-multiply filter grayscale" />}
-            <div><h1 className="font-bold text-sm uppercase">{empName}</h1><p className="text-[9px]">CNPJ: {empCnpj}</p></div>
-          </div>
-          <div className="text-right">
-            <h2 className="font-bold text-sm uppercase">Recibo de Pagamento</h2>
-            <p className="text-[10px] font-bold">{date(data.startDate)} a {date(data.endDate)}</p>
-            <span className="text-[8px] uppercase border border-black px-1 rounded">{type}</span>
-          </div>
-        </div>
-
-        {/* Dados Funcionário */}
-        <div className="grid grid-cols-12 gap-1 border-b border-black py-1">
-          <div className="col-span-8"><span className="text-[9px] block text-gray-500 uppercase">Funcionário</span><span className="font-bold uppercase">{item.name}</span></div>
-          <div className="col-span-4 text-right"><span className="text-[9px] block text-gray-500 uppercase">Cargo</span><span className="font-bold uppercase">{item.role}</span></div>
-        </div>
-
-        {/* Tabela de Valores */}
-        <div className="flex-1 mt-1">
-          <div className="grid grid-cols-[30px_1fr_40px_60px_60px] border-b border-black font-bold bg-gray-100 text-[9px] text-center uppercase">
-            <div className="border-r border-black">Cód</div><div className="border-r border-black text-left pl-1">Descrição</div><div className="border-r border-black">Ref</div><div className="border-r border-black">Venc.</div><div>Desc.</div>
-          </div>
-          <div className="text-[10px]">
-             {/* Linhas de Itens */}
-             <div className="grid grid-cols-[30px_1fr_40px_60px_60px]">
-                <div className="text-center border-r border-dashed border-gray-300">001</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Salário Base / Diárias</div><div className="text-center border-r border-dashed border-gray-300">{item.daysWorked}d</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.grossTotal)}</div><div className="text-right pr-1"></div>
-             </div>
-             {(item.overtime||0)>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">002</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Horas Extras</div><div className="text-center border-r border-dashed border-gray-300">{item.overtimeHours}h</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.overtime)}</div><div className="text-right pr-1"></div></div>}
-             {(item.bonus||0)>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">003</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Bônus / Acréscimos</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.bonus)}</div><div className="text-right pr-1"></div></div>}
-             {(item.advancesIncluded||[]).map((adv,i)=>(<div key={i} className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">05{i}</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Adiantamento ({adv.description||'Vale'})</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1"></div><div className="text-right pr-1">{money(adv.value)}</div></div>))}
-             {genericDiscount>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">099</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Outros Descontos</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1"></div><div className="text-right pr-1">{money(genericDiscount)}</div></div>}
-          </div>
-        </div>
-
-        {/* Rodapé Totais */}
-        <div className="border-t border-black pt-1 mb-2">
-          <div className="flex justify-between items-center text-[10px] uppercase font-bold bg-gray-100 p-1 border border-black">
-             <span>Líquido a Receber</span>
-             <span className="text-base">{money(item.netTotal)}</span>
-          </div>
-          <div className="text-[8px] mt-1 flex gap-4 text-gray-500">
-             <span>PIX: {item.pix || 'N/I'}</span>
-             <span>Ref: {item.type}</span>
-          </div>
-        </div>
-
-        {/* Assinaturas */}
-        <div className="text-[8px] text-justify leading-tight uppercase mb-2">
-          Declaro ter recebido a importância líquida discriminada neste recibo para plena e geral quitação.
-        </div>
-        <div className="grid grid-cols-2 gap-4 items-end">
-           <div className="text-center border-t border-black pt-1 text-[8px]">{new Date().toLocaleDateString()}<br/>DATA</div>
-           <div className="text-center border-t border-black pt-1 text-[8px]">{item.name}<br/>ASSINATURA</div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="max-w-5xl mx-auto pb-20 animate-fade-in">
-      <div className="bg-white p-4 rounded-xl shadow-lg mb-8 print:hidden flex justify-between items-center border border-slate-200">
-        <button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button>
-        <Button onClick={() => window.print()}><Printer size={18} /> Imprimir Todos</Button>
-      </div>
-
-      <div className="print:w-full space-y-0">
-        {data.items.map((item, index) => (
-          <div key={index} className="print:break-after-page print:h-screen print:flex print:flex-col print:justify-between mb-8 bg-white p-8 print:p-0 shadow-xl print:shadow-none">
-            {/* VIA COLABORADOR */}
-            <ReceiptCopy item={item} type="VIA DO COLABORADOR" />
-            
-            {/* LINHA DE CORTE */}
-            <div className="h-10 flex items-center justify-center relative print:my-2">
-               <div className="w-full border-t-2 border-dashed border-gray-400 absolute"></div>
-               <Scissors className="bg-white text-gray-500 relative z-10 px-2 rotate-90" size={32} />
-            </div>
-
-            {/* VIA EMPREGADOR */}
-            <ReceiptCopy item={item} type="VIA DO EMPREGADOR" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// --- DEMAIS COMPONENTES (SEM ALTERAÇÕES LÓGICAS, SÓ O QUE JÁ TINHA) ---
-// Configuração da Empresa, Dashboard, EmployeeManager, PayrollCalculator (Mantidos do anterior mas ajustados os imports e inputs se necessário)
-
+// --- CONFIGURAÇÃO DA EMPRESA ---
 function CompanySettings({ userId, currentData, onSave, currentUser }) {
   const [formData, setFormData] = useState({ name: '', cnpj: '', address: '', phone: '', logoUrl: '' });
   const [securityData, setSecurityData] = useState({ newEmail: '', newPassword: '', currentPassword: '' });
@@ -399,43 +240,20 @@ function CompanySettings({ userId, currentData, onSave, currentUser }) {
   return ( <div className="max-w-4xl mx-auto animate-fade-in space-y-8"><Card><h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2"><Building2 className="text-blue-600"/> Dados da Empresa</h2><form onSubmit={handleSaveProfile} className="space-y-4"><div><label className="block text-sm font-bold mb-1">Nome</label><input type="text" required className="w-full p-3 border rounded-lg bg-slate-50" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">CNPJ</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1">Telefone</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div></div><div><label className="block text-sm font-bold mb-1">Endereço</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1">URL Logo</label><input type="text" className="w-full p-3 border rounded-lg bg-slate-50" value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})}/></div><div className="pt-4 flex gap-2 justify-end"><Button variant="secondary" type="button" onClick={onSave}>Voltar</Button><Button type="submit">Salvar</Button></div></form></Card><Card className="border-l-4 border-l-orange-500"><h2 className="text-2xl font-bold text-slate-700 mb-2 flex items-center gap-2"><Shield className="text-orange-500"/> Segurança</h2><form onSubmit={handleUpdateSecurity} className="space-y-4 pt-4"><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1">Novo E-mail</label><input type="email" className="w-full p-3 border rounded-lg" value={securityData.newEmail} onChange={e => setSecurityData({...securityData, newEmail: e.target.value})} placeholder={currentUser.email} /></div><div><label className="block text-sm font-bold mb-1">Nova Senha</label><input type="password" className="w-full p-3 border rounded-lg" value={securityData.newPassword} onChange={e => setSecurityData({...securityData, newPassword: e.target.value})} /></div></div><div className="bg-orange-50 p-4 rounded-lg mt-4"><label className="block text-sm font-bold mb-1 text-orange-800">Senha Atual</label><input type="password" required className="w-full p-3 border border-orange-200 rounded-lg bg-white" value={securityData.currentPassword} onChange={e => setSecurityData({...securityData, currentPassword: e.target.value})} /></div><div className="pt-2 flex justify-end"><Button type="submit" className="bg-orange-600 hover:bg-orange-700 border-none">Atualizar Acesso</Button></div></form></Card></div> );
 }
 
-function Dashboard({ changeView, employees, userId }) {
-  const [isValeOpen, setIsValeOpen] = useState(false);
-  const [valeData, setValeData] = useState({ employeeId: '', value: '', description: '', targetMonth: new Date().toISOString().slice(0, 7) });
-  const handleSaveVale = async (e) => { e.preventDefault(); if (!valeData.employeeId || !valeData.value) return alert("Preencha os dados."); try { await addDoc(collection(db, 'users', userId, 'advances'), { ...valeData, value: parseFloat(valeData.value), createdAt: new Date(), status: 'pending' }); alert("Vale lançado!"); setIsValeOpen(false); setValeData({ ...valeData, value: '', description: '' }); } catch (error) { alert("Erro: " + error.message); } };
-  const activeEmployees = employees.filter(e => e.status !== 'inactive');
-  const totalEmployees = activeEmployees.length;
-  const totalPayrollEstimate = activeEmployees.reduce((acc, emp) => acc + (emp.baseValue || 0), 0);
-  return (
-    <div className="space-y-8 animate-slide-up">
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4"><div><h2 className="text-3xl font-bold text-slate-800">Visão Geral</h2><p className="text-slate-500 mt-1">Bem-vindo ao painel de controle.</p></div></div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none"><div className="flex justify-between items-start"><div><p className="text-blue-100 text-sm font-medium mb-1">Funcionários Ativos</p><h3 className="text-4xl font-bold">{totalEmployees}</h3></div><div className="bg-white/20 p-2 rounded-lg"><Users size={24}/></div></div></Card>
-        <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-none"><div className="flex justify-between items-start"><div><p className="text-emerald-100 text-sm font-medium mb-1">Folha Estimada</p><h3 className="text-4xl font-bold">R$ {totalPayrollEstimate.toLocaleString('pt-BR', {maximumFractionDigits:0})}</h3></div><div className="bg-white/20 p-2 rounded-lg"><DollarSign size={24}/></div></div></Card>
-        <Card onClick={() => changeView('history')} className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white border-none cursor-pointer group"><div className="flex justify-between items-start"><div><p className="text-purple-100 text-sm font-medium mb-1">Histórico</p><h3 className="text-3xl font-bold group-hover:scale-105 transition-transform">Folhas Fechadas</h3></div><div className="bg-white/20 p-2 rounded-lg group-hover:rotate-12 transition-transform"><History size={24}/></div></div><div className="mt-4 text-xs text-purple-100 bg-white/10 inline-block px-2 py-1 rounded">Ver pagamentos anteriores</div></Card>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Card onClick={() => changeView('employees')} className="group"><div className="flex items-center gap-4"><div className="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><Users size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Gerenciar Equipe</h3><p className="text-slate-500 text-sm">Adicionar, editar ou desligar colaboradores.</p></div></div></Card><Card onClick={() => changeView('payroll')} className="group"><div className="flex items-center gap-4"><div className="bg-emerald-100 p-4 rounded-full text-emerald-600 group-hover:scale-110 transition-transform"><Calculator size={32}/></div><div><h3 className="text-xl font-bold text-slate-800">Calcular Pagamentos</h3><p className="text-slate-500 text-sm">Fechar a folha, horas extras e imprimir recibos.</p></div></div></Card></div>
-      {isValeOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full animate-slide-up"><h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Receipt size={20}/></div> Novo Vale</h3><form onSubmit={handleSaveVale} className="space-y-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Funcionário</label><select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" required value={valeData.employeeId} onChange={e => setValeData({...valeData, employeeId: e.target.value})}><option value="">Selecione...</option>{activeEmployees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label><input type="number" step="0.01" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.value} onChange={e => setValeData({...valeData, value: e.target.value})} placeholder="0.00"/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Descontar em</label><input type="month" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.targetMonth} onChange={e => setValeData({...valeData, targetMonth: e.target.value})}/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label><input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500" value={valeData.description} onChange={e => setValeData({...valeData, description: e.target.value})} placeholder="Ex: Adiantamento"/></div><div className="flex justify-end gap-2 mt-6"><Button variant="secondary" type="button" onClick={() => setIsValeOpen(false)}>Cancelar</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600 border-none shadow-orange-500/30">Confirmar</Button></div></form></div></div> )}
-    </div>
-  );
-}
-
 function EmployeeManager({ employees, userId }) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const initialFormState = { name: '', role: '', baseValue: '', type: 'mensalista', pix: '', cpf: '', address: '', admissionDate: '', workHoursPerDay: '8' };
   const [formData, setFormData] = useState(initialFormState);
-  
   const handleEdit = (employee) => { setFormData({ ...employee }); setEditingId(employee.id); setIsFormOpen(true); };
   const handleNew = () => { setFormData(initialFormState); setEditingId(null); setIsFormOpen(true); };
   const handleToggleStatus = async (employee) => { const isInactive = employee.status === 'inactive'; if (confirm(`Deseja ${isInactive ? 'REATIVAR' : 'DESLIGAR'} ${employee.name}?`)) { await updateDoc(doc(db, 'users', userId, 'employees', employee.id), { status: isInactive ? 'active' : 'inactive' }); } };
   const handleSubmit = async (e) => { e.preventDefault(); if (!formData.name) return; const data = { ...formData, baseValue: parseFloat(formData.baseValue), workHoursPerDay: parseFloat(formData.workHoursPerDay) || 8, status: formData.status || 'active' }; try { if (editingId) { await updateDoc(doc(db, 'users', userId, 'employees', editingId), data); } else { await addDoc(collection(db, 'users', userId, 'employees'), { ...data, createdAt: new Date() }); } setIsFormOpen(false); } catch (err) { alert("Erro!"); } };
   const handleDelete = async (id) => { if (confirm('Excluir permanentemente?')) await deleteDoc(doc(db, 'users', userId, 'employees', id)); };
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-fade-in">
       <div className="flex justify-between items-center mb-6"><div className="flex items-center gap-3"><div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Users size={24}/></div><h2 className="text-2xl font-bold text-slate-700">Equipe</h2></div><Button onClick={handleNew}><Plus size={20} /> Novo Cadastro</Button></div>
-      {isFormOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-8 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slide-up"><h3 className="text-2xl font-bold mb-6 text-slate-800 border-b pb-4">{editingId ? 'Editar Funcionário' : 'Novo Funcionário'}</h3><form onSubmit={handleSubmit} className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><div className="lg:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo</label><input type="text" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">CPF</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Admissão</label><input type="date" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.admissionDate} onChange={e => setFormData({...formData, admissionDate: e.target.value})} /></div><div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo</label><input type="text" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo Contrato</label><select className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}><option value="mensalista">Mensalista</option><option value="diarista">Diarista</option></select></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Salário Base (R$)</label><input type="number" step="0.01" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.baseValue} onChange={e => setFormData({...formData, baseValue: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Horas/Dia</label><input type="number" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.workHoursPerDay} onChange={e => setFormData({...formData, workHoursPerDay: e.target.value})} /></div><div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Chave PIX</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.pix} onChange={e => setFormData({...formData, pix: e.target.value})} /></div></div><div className="flex justify-end gap-3 pt-4 border-t"><Button variant="secondary" type="button" onClick={() => setIsFormOpen(false)}>Cancelar</Button><Button type="submit">Salvar Dados</Button></div></form></div></div> )}
+      {isFormOpen && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white p-8 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slide-up"><h3 className="text-2xl font-bold mb-6 text-slate-800 border-b pb-4">{editingId ? 'Editar Funcionário' : 'Novo Funcionário'}</h3><form onSubmit={handleSubmit} className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><div className="lg:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome</label><input type="text" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">CPF</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Admissão</label><input type="date" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.admissionDate} onChange={e => setFormData({...formData, admissionDate: e.target.value})} /></div><div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Endereço</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo</label><input type="text" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo Contrato</label><select className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}><option value="mensalista">Mensalista</option><option value="diarista">Diarista</option></select></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Salário Base (R$)</label><input type="number" step="0.01" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.baseValue} onChange={e => setFormData({...formData, baseValue: e.target.value})} /></div><div className="lg:col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Horas/Dia</label><input type="number" required className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.workHoursPerDay} onChange={e => setFormData({...formData, workHoursPerDay: e.target.value})} /></div><div className="lg:col-span-4"><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Chave PIX</label><input type="text" className="w-full p-3 border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.pix} onChange={e => setFormData({...formData, pix: e.target.value})} /></div></div><div className="flex justify-end gap-3 pt-4 border-t"><Button variant="secondary" type="button" onClick={() => setIsFormOpen(false)}>Cancelar</Button><Button type="submit">Salvar Dados</Button></div></form></div></div> )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{employees.map(emp => { const isInactive = emp.status === 'inactive'; return (<Card key={emp.id} className={`group relative overflow-hidden ${isInactive ? 'bg-slate-100 opacity-80' : ''}`}>{isInactive && <div className="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[10px] font-bold px-2 py-1 rounded-bl-lg z-10">DESLIGADO</div>}<div><div className="flex justify-between items-start mb-2"><div className={`font-bold px-2 py-1 rounded text-xs uppercase tracking-wide ${isInactive ? 'bg-slate-200 text-slate-500' : 'bg-blue-50 text-blue-600'}`}>{emp.role}</div><div className="text-slate-400"><Users size={18}/></div></div><h4 className={`font-bold text-lg mb-1 ${isInactive ? 'text-slate-500 line-through' : 'text-slate-800'}`}>{emp.name}</h4><div className="text-xs text-slate-400 flex gap-2 mb-4"><span>{emp.workHoursPerDay}h/dia</span><span>•</span><span>{emp.type}</span></div><div className="border-t pt-3 flex justify-between items-center"><p className="font-mono font-bold text-slate-700 text-lg">R$ {Number(emp.baseValue).toLocaleString('pt-BR', {minimumFractionDigits:2})}</p><div className="flex gap-2"><button onClick={() => handleEdit(emp)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition" title="Editar"><Pencil size={18}/></button><button onClick={() => handleToggleStatus(emp)} className={`p-2 rounded-lg transition text-white ${isInactive ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`} title={isInactive ? "Reativar" : "Desligar"}>{isInactive ? <RefreshCw size={18} /> : <div className="flex items-center gap-1 text-xs font-bold"><UserX size={16}/></div>}</button></div></div></div></Card>); })}</div>
     </div>
   );
@@ -466,6 +284,81 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
         </div>
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 shadow-2xl flex justify-end items-center gap-6 z-50"><div className="text-right"><span className="block text-xs font-bold text-slate-400 uppercase">Total da Folha</span><span className="text-2xl font-bold text-slate-800">{money(totalPayroll)}</span></div><Button onClick={calculate} className="shadow-xl px-8 py-3 text-lg bg-green-600 hover:bg-green-700">Gerar Documentos <ArrowRight size={20}/></Button></div>
       </Card>
+    </div>
+  );
+}
+
+function GeneralReportView({ data, onViewHolerites, onBack, companyData, userId }) {
+  const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+  const date = (d) => d ? d.split('-').reverse().join('/') : '';
+  const total = data.items.reduce((acc, i) => acc + (i.netTotal||0), 0);
+  const copyPix = (pix) => { navigator.clipboard.writeText(pix); alert("PIX copiado!"); };
+  const handleSaveHistory = async () => { if(confirm("Fechar folha e salvar?")) { try { await addDoc(collection(db, 'users', userId, 'payrolls'), { ...data, totalValue: total, createdAt: new Date(), closedBy: companyData?.name || 'Sistema' }); alert("Salvo no Histórico!"); } catch(e) { alert("Erro: " + e.message); } } };
+
+  return (
+    <div className="max-w-full mx-auto pb-20 animate-fade-in">
+      <div className="bg-white p-4 rounded-xl shadow-lg mb-6 print:hidden flex justify-between items-center border border-slate-200">
+        <div className="flex gap-2"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button>{!data.createdAt && <Button variant="success" onClick={handleSaveHistory}><Save size={18}/> Salvar Fechamento</Button>}</div>
+        <div className="flex gap-3"><Button variant="secondary" onClick={() => window.print()}><Printer size={18}/> Imprimir Relatório</Button><Button onClick={onViewHolerites}>Ver Holerites <ArrowRight size={18}/></Button></div>
+      </div>
+      <div className="bg-white print:w-full shadow-2xl overflow-hidden rounded-lg">
+        <div className="bg-slate-900 text-white p-6 flex justify-between items-end"><div><h1 className="text-2xl font-bold uppercase tracking-wider">{companyData?.name}</h1><p className="text-slate-400 text-sm mt-1">Relatório Gerencial de Pagamentos</p></div><div className="text-right"><p className="text-slate-400 text-sm uppercase font-bold tracking-wider">Período</p><p className="text-xl font-bold">{date(data.startDate)} - {date(data.endDate)}</p></div></div>
+        <table className="w-full text-sm font-sans">
+          <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold border-b border-slate-200"><tr><th className="p-3 text-left pl-6">Colaborador</th><th className="p-3 text-center">Dias</th><th className="p-3 text-right">Base</th><th className="p-3 text-right">Bruto</th><th className="p-3 text-right text-red-500">Desc.</th><th className="p-3 text-right text-blue-500">Extra/Bônus</th><th className="p-3 text-right bg-blue-50/50">LÍQUIDO</th><th className="p-3 text-left w-48">PIX</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">
+            {data.items.map((i, idx) => (
+              <tr key={idx} className="hover:bg-slate-50">
+                <td className="p-3 pl-6"><div className="font-bold text-slate-700 uppercase">{i.name}</div><div className="text-[10px] text-slate-400 uppercase">{i.role}</div></td>
+                <td className="p-3 text-center"><Badge color="blue">{i.daysWorked}d</Badge></td>
+                <td className="p-3 text-right text-slate-500">{money(i.dailyRate)}</td>
+                <td className="p-3 text-right font-medium">{money(i.grossTotal)}</td>
+                <td className="p-3 text-right text-red-600 font-medium">{(i.discount||0)>0 ? `(${money(i.discount)})` : '-'}</td>
+                <td className="p-3 text-right text-blue-600 font-medium">{money((i.bonus||0)+(i.overtime||0))}</td>
+                <td className="p-3 text-right font-bold text-slate-800 bg-blue-50/50 text-base">{money(i.netTotal)}</td>
+                <td className="p-3 flex items-center gap-2 group"><span className="text-xs truncate max-w-[120px] block" title={i.pix}>{i.pix}</span>{i.pix && <button onClick={() => copyPix(i.pix)} className="opacity-0 group-hover:opacity-100 text-blue-500 hover:scale-110 transition"><Copy size={14}/></button>}</td>
+              </tr>
+            ))}
+            <tr className="bg-slate-800 text-white"><td colSpan="6" className="p-4 text-right uppercase font-bold tracking-wider text-sm">Total Geral da Folha:</td><td className="p-4 text-right font-bold text-xl bg-slate-700">{money(total)}</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function HoleriteView({ data, onBack, companyData }) {
+  const money = (v) => Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+  const date = (d) => d ? d.split('-').reverse().join('/') : '';
+  const empName = companyData?.name || 'EMPRESA'; const empCnpj = companyData?.cnpj || ''; const empLogo = companyData?.logoUrl;
+
+  const ReceiptCopy = ({ item, type }) => {
+    const totalAdvances = (item.advancesIncluded || []).reduce((acc, c) => acc + (c.value||0), 0);
+    const genericDiscount = (item.discount || 0) - totalAdvances;
+    
+    return (
+      <div className="border-2 border-black p-4 h-[13cm] relative flex flex-col justify-between text-xs font-sans text-black bg-white">
+        <div className="border-b border-black pb-2 flex justify-between items-end"><div className="flex items-center gap-3">{empLogo && <img src={empLogo} alt="Logo" className="h-8 w-auto mix-blend-multiply filter grayscale" />}<div><h1 className="font-bold text-sm uppercase">{empName}</h1><p className="text-[9px]">CNPJ: {empCnpj}</p></div></div><div className="text-right"><h2 className="font-bold text-sm uppercase">Recibo de Pagamento</h2><p className="text-[10px] font-bold">{date(data.startDate)} a {date(data.endDate)}</p><span className="text-[8px] uppercase border border-black px-1 rounded">{type}</span></div></div>
+        <div className="grid grid-cols-12 gap-1 border-b border-black py-1"><div className="col-span-8"><span className="text-[9px] block text-gray-500 uppercase">Funcionário</span><span className="font-bold uppercase">{item.name}</span></div><div className="col-span-4 text-right"><span className="text-[9px] block text-gray-500 uppercase">Cargo</span><span className="font-bold uppercase">{item.role}</span></div></div>
+        <div className="flex-1 mt-1"><div className="grid grid-cols-[30px_1fr_40px_60px_60px] border-b border-black font-bold bg-gray-100 text-[9px] text-center uppercase"><div className="border-r border-black">Cód</div><div className="border-r border-black text-left pl-1">Descrição</div><div className="border-r border-black">Ref</div><div className="border-r border-black">Venc.</div><div>Desc.</div></div>
+          <div className="text-[10px]">
+             <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">001</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Salário Base / Diárias</div><div className="text-center border-r border-dashed border-gray-300">{item.daysWorked}d</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.grossTotal)}</div><div className="text-right pr-1"></div></div>
+             {(item.overtime||0)>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">002</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Horas Extras</div><div className="text-center border-r border-dashed border-gray-300">{item.overtimeHours}h</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.overtime)}</div><div className="text-right pr-1"></div></div>}
+             {(item.bonus||0)>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">003</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Bônus / Acréscimos</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.bonus)}</div><div className="text-right pr-1"></div></div>}
+             {(item.advancesIncluded||[]).map((adv,i)=>(<div key={i} className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">05{i}</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Adiantamento ({adv.description||'Vale'})</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1"></div><div className="text-right pr-1">{money(adv.value)}</div></div>))}
+             {genericDiscount>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">099</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Outros Descontos</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1"></div><div className="text-right pr-1">{money(genericDiscount)}</div></div>}
+          </div>
+        </div>
+        <div className="border-t border-black pt-1 mb-2"><div className="flex justify-between items-center text-[10px] uppercase font-bold bg-gray-100 p-1 border border-black"><span>Líquido a Receber</span><span className="text-base">{money(item.netTotal)}</span></div><div className="text-[8px] mt-1 flex gap-4 text-gray-500"><span>PIX: {item.pix || 'N/I'}</span><span>Ref: {item.type}</span></div></div>
+        <div className="text-[8px] text-justify leading-tight uppercase mb-2">Declaro ter recebido a importância líquida discriminada neste recibo para plena e geral quitação.</div>
+        <div className="grid grid-cols-2 gap-4 items-end"><div className="text-center border-t border-black pt-1 text-[8px]">{new Date().toLocaleDateString()}<br/>DATA</div><div className="text-center border-t border-black pt-1 text-[8px]">{item.name}<br/>ASSINATURA</div></div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto pb-20 animate-fade-in">
+      <div className="bg-white p-4 rounded-xl shadow-lg mb-8 print:hidden flex justify-between items-center border border-slate-200"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button><Button onClick={() => window.print()}><Printer size={18} /> Imprimir Todos</Button></div>
+      <div className="print:w-full space-y-0">{data.items.map((item, index) => (<div key={index} className="print:break-after-page print:h-screen print:flex print:flex-col print:justify-between mb-8 bg-white p-8 print:p-0 shadow-xl print:shadow-none"><ReceiptCopy item={item} type="VIA DO COLABORADOR" /><div className="h-10 flex items-center justify-center relative print:my-2"><div className="w-full border-t-2 border-dashed border-gray-400 absolute"></div><Scissors className="bg-white text-gray-500 relative z-10 px-2 rotate-90" size={32} /></div><ReceiptCopy item={item} type="VIA DO EMPREGADOR" /></div>))}</div>
     </div>
   );
 }
