@@ -274,8 +274,8 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
 
   const inputClass = "w-full p-3 border border-slate-600 bg-slate-900 rounded-lg text-white font-medium focus:ring-2 focus:ring-blue-500 outline-none placeholder-slate-600";
   
-  // MUDANÇA: Estilo específico para campos de desconto (avermelhado e translúcido)
-  const discountInputClass = "w-full p-3 bg-red-950/30 border border-red-900/50 rounded-lg text-right text-red-300 font-medium focus:ring-2 focus:ring-red-500 outline-none placeholder-red-900/50";
+  // MUDANÇA: Estilo NEON para campos de desconto (borda grossa e texto vibrante)
+  const discountInputClass = "w-full p-3 bg-slate-900 border-2 border-red-500 rounded-lg text-right text-red-500 font-bold focus:ring-2 focus:ring-red-400 outline-none placeholder-red-700 transition-all";
 
 
   return (
@@ -306,9 +306,9 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
               <td className="p-4"><input type="number" className={`${inputClass} text-center`} value={inputs[emp.id]?.days || ''} placeholder="0" onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
               <td className="p-4"><input type="number" className={`${inputClass} text-center`} placeholder="0" onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td><td className="p-4"><input type="number" className={`${inputClass} text-right text-blue-400`} value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td><td className="p-4"><input type="number" className={`${inputClass} text-right text-emerald-400`} value={inputs[emp.id]?.bonus || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
               <td className="p-4 space-y-1">
-                {/* MUDANÇA: Campos de desconto usando o novo estilo avermelhado */}
+                {/* MUDANÇA: Campos de desconto usando o novo estilo NEON */}
                 <input type="number" className={discountInputClass} value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/>
-                <input type="text" className="w-full p-1 text-[10px] bg-red-950/30 border border-red-900/50 rounded text-red-300 placeholder-red-900/50 focus:ring-1 focus:ring-red-500 outline-none mt-1" value={inputs[emp.id]?.discountReason || ''} placeholder="Motivo (Opc.)" onChange={e => handleInputChange(emp.id, 'discountReason', e.target.value)}/>
+                <input type="text" className="w-full p-1 text-[10px] bg-slate-900 border-2 border-red-500 rounded text-red-500 placeholder-red-700 focus:ring-1 focus:ring-red-400 outline-none mt-1 font-bold transition-all" value={inputs[emp.id]?.discountReason || ''} placeholder="Motivo (Opc.)" onChange={e => handleInputChange(emp.id, 'discountReason', e.target.value)}/>
               </td>
               <td className="p-4 text-right bg-slate-900/30"><span className="font-mono font-bold text-lg text-white">{money(v.netTotal)}</span></td></tr>); })}
             </tbody>
