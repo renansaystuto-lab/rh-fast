@@ -31,7 +31,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- UI COMPONENTS ---
+// --- UI COMPONENTS (DARK THEME) ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-2xl shadow-xl border border-slate-700 p-6 transition-all duration-300 ${onClick ? 'cursor-pointer hover:bg-slate-750 hover:border-slate-600 hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
     {children}
@@ -107,6 +107,7 @@ export default function App() {
   const [reportData, setReportData] = useState(null); 
   const [loadingAuth, setLoadingAuth] = useState(true);
 
+  // Estados persistentes
   const [payrollInputs, setPayrollInputs] = useState({});
   const [payrollDates, setPayrollDates] = useState({ start: '', end: '' });
 
@@ -249,9 +250,9 @@ function EmployeeManager({ employees, userId }) {
   );
 }
 
-// --- CALCULADORA ---
+// --- CALCULADORA (SCROLL E CORES) ---
 function PayrollCalculator({ employees, advances, onGenerate, companyData, inputs, setInputs, dates, setDates }) {
-  const [sortOrder, setSortOrder] = useState('name'); // 'name' or 'admission'
+  const [sortOrder, setSortOrder] = useState('name'); 
 
   const handleInputChange = (id, field, value) => setInputs(p => ({ ...p, [id]: { ...p[id], [field]: field === 'discountReason' ? value : parseFloat(value) || 0 } }));
   const handleOvertimeHoursChange = (id, hours, emp) => { const h = parseFloat(hours) || 0; const daily = emp.type === 'mensalista' ? (emp.baseValue / 30) : emp.baseValue; const hourly = daily / (emp.workHoursPerDay || 8); setInputs(p => ({ ...p, [id]: { ...p[id], overtimeHours: h, overtime: parseFloat((hourly * h).toFixed(2)) } })); };
@@ -259,7 +260,6 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
   const getPending = (empId) => { if (!dates.start) return { total: 0, list: [] }; const list = advances.filter(a => a.employeeId === empId && a.targetMonth === dates.start.slice(0,7) && a.status === 'pending'); return { total: list.reduce((acc, c) => acc + c.value, 0), list }; };
   const getVals = (emp) => { const d = inputs[emp.id] || {}; const dailyRate = emp.type === 'mensalista' ? (emp.baseValue/30) : emp.baseValue; const gross = dailyRate * (d.days || 0); return { ...d, grossTotal: gross, netTotal: gross + (d.bonus||0) + (d.overtime||0) - (d.discount||0), advancesIncluded: d.advancesIncluded || [], discountReason: d.discountReason || '' }; };
   
-  // FILTRO E ORDENAÇÃO
   let activeEmployees = employees.filter(e => e.status !== 'inactive');
   activeEmployees.sort((a, b) => {
     if (sortOrder === 'name') return a.name.localeCompare(b.name);
@@ -271,17 +271,21 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
   const calculate = () => { if (!dates.start || !dates.end) return alert("Selecione datas."); if(!companyData?.name) alert("Atenção: Configure a empresa antes!"); const items = activeEmployees.map(e => ({ ...e, ...getVals(e), dailyRate: e.type === 'mensalista' ? (e.baseValue/30) : e.baseValue })).filter(i => i.days > 0 || i.netTotal > 0); if (items.length === 0) return alert("Preencha algo."); onGenerate({ startDate: dates.start, endDate: dates.end, items }); };
   const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 
-  const inputClass = "w-full p-3 border border-slate-600 bg-slate-900 rounded-lg text-white font-medium focus:ring-2 focus:ring-blue-500 outline-none placeholder-slate-600";
-  
-  // MUDANÇA: Estilo NEON para campos de desconto (borda grossa e texto vibrante)
-  const discountInputClass = "w-full p-3 bg-slate-900 border-2 border-red-500 rounded-lg text-right text-red-500 font-bold focus:ring-2 focus:ring-red-400 outline-none placeholder-red-700 transition-all";
-
+  // STYLES PARA AS COLUNAS (Color Coding)
+  const baseInput = "w-full p-3 border rounded-lg text-center font-medium outline-none transition-all";
+  const daysStyle = `${baseInput} bg-slate-700 border-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 text-white`;
+  const extraStyle = `${baseInput} bg-blue-950/40 border-blue-800/50 text-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500`;
+  const bonusStyle = `${baseInput} bg-emerald-950/40 border-emerald-800/50 text-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500`;
+  const discountStyle = `${baseInput} bg-slate-900 border-2 border-red-500 text-red-500 font-bold focus:ring-2 focus:ring-red-400 placeholder-red-700`;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
-      <Card className="pb-40">
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8 border-b border-slate-700 pb-6">
-          <div><h2 className="text-2xl font-bold text-white flex items-center gap-2"><Calculator className="text-blue-500"/> Calcular Folha</h2><p className="text-slate-400 text-sm mt-1">Defina o período e preencha os dados.</p></div>
+      {/* Container Principal da Tabela */}
+      <div className="bg-slate-800 rounded-2xl shadow-xl border border-slate-700 p-6 pb-40 flex flex-col h-[85vh]"> {/* Altura fixa para permitir scroll interno */}
+        
+        {/* Header da Card */}
+        <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-4 border-b border-slate-700 pb-4 flex-shrink-0">
+          <div><h2 className="text-2xl font-bold text-white flex items-center gap-2"><Calculator className="text-blue-500"/> Calcular Folha</h2><p className="text-slate-400 text-sm mt-1">Preencha os dados abaixo.</p></div>
           <div className="flex gap-4 items-end">
             <div className="flex bg-slate-700 p-1 rounded-xl border border-slate-600">
                 <button onClick={() => setSortOrder('name')} className={`p-2 rounded-lg transition ${sortOrder === 'name' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`} title="Ordem Alfabética"><ArrowDownAZ size={20}/></button>
@@ -294,27 +298,48 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-slate-700">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-700 text-slate-300 uppercase text-xs font-bold"><tr><th className="p-4">Colaborador</th><th className="p-4 w-32 text-center">Dias</th><th className="p-4 w-32 text-center">Hrs Ext</th><th className="p-4 w-32 text-right">R$ Extra</th><th className="p-4 w-32 text-right">Bônus</th><th className="p-4 w-32 text-right">Desc.</th><th className="p-4 w-40 text-right bg-slate-700/50">Líquido</th></tr></thead>
+
+        {/* ÁREA DE SCROLL DA TABELA (STICKY HEADER) */}
+        <div className="overflow-auto flex-1 rounded-xl border border-slate-700 relative">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead className="bg-slate-800 text-slate-300 uppercase text-xs font-bold sticky top-0 z-10 shadow-lg">
+              <tr>
+                <th className="p-4 bg-slate-800">Colaborador</th>
+                <th className="p-4 w-32 text-center bg-slate-800">Dias</th>
+                <th className="p-4 w-32 text-center bg-slate-800 text-blue-400">Hrs Ext</th>
+                <th className="p-4 w-32 text-center bg-slate-800 text-blue-400">R$ Extra</th>
+                <th className="p-4 w-32 text-center bg-slate-800 text-emerald-400">Bônus</th>
+                <th className="p-4 w-32 text-center bg-slate-800 text-red-400">Desc.</th>
+                <th className="p-4 w-40 text-right bg-slate-800">Líquido</th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-slate-700">
-              {activeEmployees.map(emp => { const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0; return (<tr key={emp.id} className="hover:bg-slate-700/50 transition-colors"><td className="p-4"><div className="font-bold text-white">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>
-              {/* MUDANÇA: Botão de Vale pulsante e laranja vivo */}
-              {p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 border border-orange-400 transition shadow-lg shadow-orange-500/20 animate-pulse"><AlertTriangle size={12}/> Vale ABERTO: {money(p.total)}</div>} 
-              {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-900/50 text-emerald-200 text-xs font-bold border border-emerald-700"><CheckCircle size={12}/> Descontado</div>}</td>
-              <td className="p-4"><input type="number" className={`${inputClass} text-center`} value={inputs[emp.id]?.days || ''} placeholder="0" onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
-              <td className="p-4"><input type="number" className={`${inputClass} text-center`} placeholder="0" onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td><td className="p-4"><input type="number" className={`${inputClass} text-right text-blue-400`} value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td><td className="p-4"><input type="number" className={`${inputClass} text-right text-emerald-400`} value={inputs[emp.id]?.bonus || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
+              {activeEmployees.map(emp => { const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0; return (<tr key={emp.id} className="hover:bg-slate-700/50 transition-colors">
+              <td className="p-4"><div className="font-bold text-white">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>{p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 border border-orange-400 transition shadow-lg shadow-orange-500/20 animate-pulse"><AlertTriangle size={12}/> Vale ABERTO: {money(p.total)}</div>} {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-900/50 text-emerald-200 text-xs font-bold border border-emerald-700"><CheckCircle size={12}/> Descontado</div>}</td>
+              
+              <td className="p-4"><input type="number" className={daysStyle} value={inputs[emp.id]?.days || ''} placeholder="0" onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
+              
+              <td className="p-4"><input type="number" className={extraStyle} placeholder="0" onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td>
+              <td className="p-4"><input type="number" className={extraStyle} value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td>
+              
+              <td className="p-4"><input type="number" className={bonusStyle} value={inputs[emp.id]?.bonus || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
+              
               <td className="p-4 space-y-1">
-                {/* MUDANÇA: Campos de desconto usando o novo estilo NEON */}
-                <input type="number" className={discountInputClass} value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/>
+                <input type="number" className={discountStyle} value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/>
                 <input type="text" className="w-full p-1 text-[10px] bg-slate-900 border-2 border-red-500 rounded text-red-500 placeholder-red-700 focus:ring-1 focus:ring-red-400 outline-none mt-1 font-bold transition-all" value={inputs[emp.id]?.discountReason || ''} placeholder="Motivo (Opc.)" onChange={e => handleInputChange(emp.id, 'discountReason', e.target.value)}/>
               </td>
-              <td className="p-4 text-right bg-slate-900/30"><span className="font-mono font-bold text-lg text-white">{money(v.netTotal)}</span></td></tr>); })}
+              
+              <td className="p-4 text-right bg-emerald-900/10"><span className="font-mono font-bold text-lg text-emerald-400">{money(v.netTotal)}</span></td></tr>); })}
             </tbody>
           </table>
         </div>
-        <div className="fixed bottom-0 left-0 w-full bg-slate-800 border-t border-slate-700 p-4 shadow-2xl flex justify-end items-center gap-6 z-50"><div className="text-right"><span className="block text-xs font-bold text-slate-400 uppercase">Total da Folha</span><span className="text-2xl font-bold text-white">{money(totalPayroll)}</span></div><Button onClick={calculate} className="shadow-xl px-8 py-3 text-lg bg-emerald-600 hover:bg-emerald-500">Gerar Documentos <ArrowRight size={20}/></Button></div>
-      </Card>
+
+        {/* Footer Fixo */}
+        <div className="fixed bottom-0 left-0 w-full bg-slate-800 border-t border-slate-700 p-4 shadow-2xl flex justify-end items-center gap-6 z-50">
+          <div className="text-right"><span className="block text-xs font-bold text-slate-400 uppercase">Total da Folha</span><span className="text-2xl font-bold text-white">{money(totalPayroll)}</span></div>
+          <Button onClick={calculate} className="shadow-xl px-8 py-3 text-lg bg-emerald-600 hover:bg-emerald-500">Gerar Documentos <ArrowRight size={20}/></Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -386,32 +411,10 @@ function HoleriteView({ data, onBack, companyData }) {
     );
   };
 
-  // Lógica de Paginação (2 por página)
-  const chunks = [];
-  for (let i = 0; i < data.items.length; i += 2) {
-    chunks.push(data.items.slice(i, i + 2));
-  }
-
   return (
     <div className="max-w-5xl mx-auto pb-20 animate-fade-in">
       <div className="bg-white p-4 rounded-xl shadow-lg mb-8 print:hidden flex justify-between items-center border border-slate-200"><button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-bold transition"><ArrowLeft size={20} /> Voltar</button><Button onClick={() => window.print()}><Printer size={18} /> Imprimir Todos</Button></div>
-      <div className="print:w-full space-y-0">
-        {chunks.map((chunk, pageIndex) => (
-          <div key={pageIndex} className="print:break-after-page print:h-screen print:flex print:flex-col print:justify-between mb-8 bg-white p-8 print:p-0 shadow-xl print:shadow-none">
-            {/* Primeira Via (Funcionário A) */}
-            <ReceiptCopy item={chunk[0]} type="RECIBO DE PAGAMENTO" />
-            
-            {/* Linha de Corte */}
-            <div className="h-10 flex items-center justify-center relative print:my-2">
-               <div className="w-full border-t-2 border-dashed border-gray-400 absolute"></div>
-               <Scissors className="bg-white text-gray-500 relative z-10 px-2 rotate-90" size={32} />
-            </div>
-
-            {/* Segunda Via (Funcionário B ou Vazio) */}
-            {chunk[1] ? <ReceiptCopy item={chunk[1]} type="RECIBO DE PAGAMENTO" /> : <div className="flex-1 border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300">ESPAÇO RESERVADO</div>}
-          </div>
-        ))}
-      </div>
+      <div className="print:w-full space-y-0">{data.items.map((item, index) => (<div key={index} className="print:break-after-page print:h-screen print:flex print:flex-col print:justify-between mb-8 bg-white p-8 print:p-0 shadow-xl print:shadow-none"><ReceiptCopy item={item} type="VIA DO COLABORADOR" /><div className="h-10 flex items-center justify-center relative print:my-2"><div className="w-full border-t-2 border-dashed border-gray-400 absolute"></div><Scissors className="bg-white text-gray-500 relative z-10 px-2 rotate-90" size={32} /></div><ReceiptCopy item={item} type="VIA DO EMPREGADOR" /></div>))}</div>
     </div>
   );
 }
