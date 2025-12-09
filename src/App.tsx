@@ -33,7 +33,6 @@ const db = getFirestore(app);
 
 // --- UI COMPONENTS (DARK THEME) ---
 const Card = ({ children, className = "", onClick }) => (
-  // MUDANÇA: Fundo Slate-800 (Cinza Grafite) para o cartão
   <div onClick={onClick} className={`bg-slate-800 rounded-2xl shadow-xl border border-slate-700 p-6 transition-all duration-300 ${onClick ? 'cursor-pointer hover:bg-slate-750 hover:border-slate-600 hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
     {children}
   </div>
@@ -44,7 +43,6 @@ const Button = ({ children, variant = 'primary', className = "", ...props }) => 
     primary: "bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20",
     success: "bg-emerald-600 text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20",
     danger: "bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-900/20",
-    // MUDANÇA: Botão secundário agora é escuro
     secondary: "bg-slate-700 text-slate-200 border border-slate-600 hover:bg-slate-600 hover:text-white", 
     dark: "bg-slate-900 text-white hover:bg-black"
   };
@@ -144,7 +142,6 @@ export default function App() {
   if (!user) return <LoginScreen />;
 
   return (
-    // MUDANÇA: Fundo global agora é bg-slate-900 (Cinza Chumbo)
     <div className="min-h-screen bg-slate-900 font-sans text-slate-200 flex flex-col">
       <header className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 shadow-xl z-10 print:hidden border-b border-white/10">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -200,7 +197,6 @@ function CompanySettings({ userId, currentData, onSave, currentUser }) {
   const handleSaveProfile = async (e) => { e.preventDefault(); try { await setDoc(doc(db, 'users', userId, 'settings', 'profile'), formData); alert("Salvo!"); onSave(); } catch (error) { alert("Erro: " + error.message); } };
   const handleUpdateSecurity = async (e) => { e.preventDefault(); if (!securityData.currentPassword) return alert("Digite a senha atual."); try { const credential = EmailAuthProvider.credential(currentUser.email, securityData.currentPassword); await reauthenticateWithCredential(currentUser, credential); if (securityData.newEmail && securityData.newEmail !== currentUser.email) await updateEmail(currentUser, securityData.newEmail); if (securityData.newPassword) await updatePassword(currentUser, securityData.newPassword); alert("Acesso atualizado!"); setSecurityData({ newEmail: '', newPassword: '', currentPassword: '' }); } catch (error) { alert("Erro: " + error.message); } };
   
-  // Styles for inputs in Dark Mode
   const inputStyle = "w-full p-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 outline-none transition";
   
   return ( <div className="max-w-4xl mx-auto animate-fade-in space-y-8"><Card><h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><Building2 className="text-blue-500"/> Dados da Empresa</h2><form onSubmit={handleSaveProfile} className="space-y-4"><div><label className="block text-sm font-bold mb-1 text-slate-400">Nome</label><input type="text" required className={inputStyle} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1 text-slate-400">CNPJ</label><input type="text" className={inputStyle} value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1 text-slate-400">Telefone</label><input type="text" className={inputStyle} value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}/></div></div><div><label className="block text-sm font-bold mb-1 text-slate-400">Endereço</label><input type="text" className={inputStyle} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}/></div><div><label className="block text-sm font-bold mb-1 text-slate-400">URL Logo</label><input type="text" className={inputStyle} value={formData.logoUrl} onChange={e => setFormData({...formData, logoUrl: e.target.value})}/></div><div className="pt-4 flex gap-2 justify-end"><Button variant="secondary" type="button" onClick={onSave}>Voltar</Button><Button type="submit">Salvar</Button></div></form></Card><Card className="border-l-4 border-l-orange-600"><h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Shield className="text-orange-500"/> Segurança</h2><form onSubmit={handleUpdateSecurity} className="space-y-4 pt-4"><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold mb-1 text-slate-400">Novo E-mail</label><input type="email" className={inputStyle} value={securityData.newEmail} onChange={e => setSecurityData({...securityData, newEmail: e.target.value})} placeholder={currentUser.email} /></div><div><label className="block text-sm font-bold mb-1 text-slate-400">Nova Senha</label><input type="password" className={inputStyle} value={securityData.newPassword} onChange={e => setSecurityData({...securityData, newPassword: e.target.value})} /></div></div><div className="bg-orange-900/30 p-4 rounded-lg mt-4 border border-orange-800"><label className="block text-sm font-bold mb-1 text-orange-400">Senha Atual</label><input type="password" required className={inputStyle} value={securityData.currentPassword} onChange={e => setSecurityData({...securityData, currentPassword: e.target.value})} /></div><div className="pt-2 flex justify-end"><Button type="submit" className="bg-orange-600 hover:bg-orange-700 border-none text-white">Atualizar Acesso</Button></div></form></Card></div> );
@@ -214,7 +210,6 @@ function Dashboard({ changeView, employees, userId }) {
   const totalEmployees = activeEmployees.length;
   const totalPayrollEstimate = activeEmployees.reduce((acc, emp) => acc + (emp.baseValue || 0), 0);
   
-  // Style for dark inputs
   const inputStyle = "w-full p-3 bg-slate-900 border border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 text-white";
 
   return (
@@ -278,20 +273,21 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
   const money = (v) => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 
   const inputClass = "w-full p-3 border border-slate-600 bg-slate-900 rounded-lg text-white font-medium focus:ring-2 focus:ring-blue-500 outline-none placeholder-slate-600";
+  
+  // MUDANÇA: Estilo específico para campos de desconto (avermelhado e translúcido)
+  const discountInputClass = "w-full p-3 bg-red-950/30 border border-red-900/50 rounded-lg text-right text-red-300 font-medium focus:ring-2 focus:ring-red-500 outline-none placeholder-red-900/50";
+
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
-      {/* Container principal com pb-40 para o último item não ser cortado pelo footer fixo */}
       <Card className="pb-40">
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-8 border-b border-slate-700 pb-6">
           <div><h2 className="text-2xl font-bold text-white flex items-center gap-2"><Calculator className="text-blue-500"/> Calcular Folha</h2><p className="text-slate-400 text-sm mt-1">Defina o período e preencha os dados.</p></div>
           <div className="flex gap-4 items-end">
-            {/* Botão de Ordenação */}
             <div className="flex bg-slate-700 p-1 rounded-xl border border-slate-600">
                 <button onClick={() => setSortOrder('name')} className={`p-2 rounded-lg transition ${sortOrder === 'name' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`} title="Ordem Alfabética"><ArrowDownAZ size={20}/></button>
                 <button onClick={() => setSortOrder('admission')} className={`p-2 rounded-lg transition ${sortOrder === 'admission' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`} title="Data Admissão"><CalendarDays size={20}/></button>
             </div>
-            {/* Datas */}
             <div className="flex gap-4 bg-slate-700 p-2 rounded-xl border border-slate-600">
               <div><label className="block text-[10px] font-bold uppercase text-slate-400 px-1">Início</label><input type="date" value={dates.start} className="bg-transparent font-bold text-white outline-none [&::-webkit-calendar-picker-indicator]:invert" onChange={e => setDates({...dates, start: e.target.value})}/></div>
               <div className="w-px bg-slate-500"></div>
@@ -303,12 +299,16 @@ function PayrollCalculator({ employees, advances, onGenerate, companyData, input
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-700 text-slate-300 uppercase text-xs font-bold"><tr><th className="p-4">Colaborador</th><th className="p-4 w-32 text-center">Dias</th><th className="p-4 w-32 text-center">Hrs Ext</th><th className="p-4 w-32 text-right">R$ Extra</th><th className="p-4 w-32 text-right">Bônus</th><th className="p-4 w-32 text-right">Desc.</th><th className="p-4 w-40 text-right bg-slate-700/50">Líquido</th></tr></thead>
             <tbody className="divide-y divide-slate-700">
-              {activeEmployees.map(emp => { const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0; return (<tr key={emp.id} className="hover:bg-slate-700/50 transition-colors"><td className="p-4"><div className="font-bold text-white">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>{p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-900/50 text-orange-200 text-xs font-bold hover:bg-orange-900 border border-orange-700 transition"><AlertTriangle size={12}/> Vale: {money(p.total)}</div>} {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-900/50 text-emerald-200 text-xs font-bold border border-emerald-700"><CheckCircle size={12}/> Descontado</div>}</td>
+              {activeEmployees.map(emp => { const v = getVals(emp); const p = getPending(emp.id); const done = v.advancesIncluded.length > 0; return (<tr key={emp.id} className="hover:bg-slate-700/50 transition-colors"><td className="p-4"><div className="font-bold text-white">{emp.name}</div><div className="text-xs text-slate-400 mb-1">{emp.role}</div>
+              {/* MUDANÇA: Botão de Vale pulsante e laranja vivo */}
+              {p.total > 0 && !done && <div onClick={() => handleApplyAdvances(emp.id, p.total, p.list)} className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 border border-orange-400 transition shadow-lg shadow-orange-500/20 animate-pulse"><AlertTriangle size={12}/> Vale ABERTO: {money(p.total)}</div>} 
+              {done && <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-900/50 text-emerald-200 text-xs font-bold border border-emerald-700"><CheckCircle size={12}/> Descontado</div>}</td>
               <td className="p-4"><input type="number" className={`${inputClass} text-center`} value={inputs[emp.id]?.days || ''} placeholder="0" onChange={e => handleInputChange(emp.id, 'days', e.target.value)}/></td>
               <td className="p-4"><input type="number" className={`${inputClass} text-center`} placeholder="0" onChange={e => handleOvertimeHoursChange(emp.id, e.target.value, emp)}/></td><td className="p-4"><input type="number" className={`${inputClass} text-right text-blue-400`} value={inputs[emp.id]?.overtime || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'overtime', e.target.value)}/></td><td className="p-4"><input type="number" className={`${inputClass} text-right text-emerald-400`} value={inputs[emp.id]?.bonus || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'bonus', e.target.value)}/></td>
               <td className="p-4 space-y-1">
-                <input type="number" className={`${inputClass} text-right text-red-400`} value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/>
-                <input type="text" className="w-full p-1 text-[10px] bg-slate-900 border border-slate-700 rounded text-red-300 placeholder-slate-600 focus:ring-1 focus:ring-red-500 outline-none" value={inputs[emp.id]?.discountReason || ''} placeholder="Motivo (Opc.)" onChange={e => handleInputChange(emp.id, 'discountReason', e.target.value)}/>
+                {/* MUDANÇA: Campos de desconto usando o novo estilo avermelhado */}
+                <input type="number" className={discountInputClass} value={inputs[emp.id]?.discount || ''} placeholder="0,00" onChange={e => handleInputChange(emp.id, 'discount', e.target.value)}/>
+                <input type="text" className="w-full p-1 text-[10px] bg-red-950/30 border border-red-900/50 rounded text-red-300 placeholder-red-900/50 focus:ring-1 focus:ring-red-500 outline-none mt-1" value={inputs[emp.id]?.discountReason || ''} placeholder="Motivo (Opc.)" onChange={e => handleInputChange(emp.id, 'discountReason', e.target.value)}/>
               </td>
               <td className="p-4 text-right bg-slate-900/30"><span className="font-mono font-bold text-lg text-white">{money(v.netTotal)}</span></td></tr>); })}
             </tbody>
