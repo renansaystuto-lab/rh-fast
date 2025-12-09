@@ -31,7 +31,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- UI COMPONENTS (DARK THEME) ---
+// --- UI COMPONENTS ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-2xl shadow-xl border border-slate-700 p-6 transition-all duration-300 ${onClick ? 'cursor-pointer hover:bg-slate-750 hover:border-slate-600 hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
     {children}
@@ -324,6 +324,33 @@ function GeneralReportView({ data, onViewHolerites, onBack, companyData, userId 
   // Filtra quem teve desconto > 0
   const employeesWithDiscount = data.items.filter(item => (item.discount || 0) > 0);
 
+  // PREPARAR LISTA DE DESCONTOS DETALHADOS (SOMA DE VALES + MANUAIS)
+  const allDiscountDetails = [];
+  employeesWithDiscount.forEach(emp => {
+    // 1. Adicionar cada vale como uma linha
+    if (emp.advancesIncluded && emp.advancesIncluded.length > 0) {
+      emp.advancesIncluded.forEach(adv => {
+        allDiscountDetails.push({
+          name: emp.name,
+          reason: `VALE: ${adv.description || 'Adiantamento'}`,
+          value: adv.value
+        });
+      });
+    }
+    
+    // 2. Adicionar desconto manual (se houver saldo restante)
+    const totalAdvances = (emp.advancesIncluded || []).reduce((a, b) => a + b.value, 0);
+    const manualDiscount = (emp.discount || 0) - totalAdvances;
+    
+    if (manualDiscount > 0.01) {
+      allDiscountDetails.push({
+        name: emp.name,
+        reason: emp.discountReason ? `MANUAL: ${emp.discountReason}` : 'OUTROS DESCONTOS',
+        value: manualDiscount
+      });
+    }
+  });
+
   return (
     <div className="max-w-full mx-auto pb-20 animate-fade-in">
       <div className="bg-white p-4 rounded-xl shadow-lg mb-6 print:hidden flex justify-between items-center border border-slate-200">
@@ -371,9 +398,10 @@ function GeneralReportView({ data, onViewHolerites, onBack, companyData, userId 
           </tbody>
         </table>
 
-        {employeesWithDiscount.length > 0 && (
+        {/* RESUMO DE DESCONTOS (CORRIGIDO PARA MOSTRAR DETALHES REAIS) */}
+        {allDiscountDetails.length > 0 && (
           <div className="mt-8 mx-4 mb-4 break-inside-avoid">
-            <h3 className="text-lg font-bold uppercase mb-2 border-b-2 border-red-500 text-red-700 inline-block">Resumo de Descontos</h3>
+            <h3 className="text-lg font-bold uppercase mb-2 border-b-2 border-red-500 text-red-700 inline-block">Resumo Detalhado de Descontos</h3>
             <table className="w-full text-sm font-sans border-collapse border border-slate-300">
               <thead className="bg-red-50 text-red-900 uppercase text-xs font-bold">
                 <tr>
@@ -383,11 +411,11 @@ function GeneralReportView({ data, onViewHolerites, onBack, companyData, userId 
                 </tr>
               </thead>
               <tbody>
-                {employeesWithDiscount.map((emp, idx) => (
+                {allDiscountDetails.map((detail, idx) => (
                   <tr key={idx} className="odd:bg-white even:bg-slate-50">
-                    <td className="p-2 border border-slate-300 font-bold uppercase">{emp.name}</td>
-                    <td className="p-2 border border-slate-300 uppercase text-slate-600">{emp.discountReason || 'OUTROS DESCONTOS / VALE'}</td>
-                    <td className="p-2 border border-slate-300 text-right font-bold text-red-600">{money(emp.discount)}</td>
+                    <td className="p-2 border border-slate-300 font-bold uppercase">{detail.name}</td>
+                    <td className="p-2 border border-slate-300 uppercase text-slate-600">{detail.reason}</td>
+                    <td className="p-2 border border-slate-300 text-right font-bold text-red-600">{money(detail.value)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -410,7 +438,7 @@ function HoleriteView({ data, onBack, companyData }) {
     
     return (
       <div className="border-2 border-black p-4 h-[13cm] relative flex flex-col justify-between text-xs font-sans text-black bg-white">
-        <div className="border-b border-black pb-2 flex justify-between items-end"><div className="flex items-center gap-3">{empLogo && <img src={empLogo} alt="Logo" className="h-8 w-auto mix-blend-multiply filter grayscale" />}<div><h1 className="font-bold text-sm uppercase">{empName}</h1><p className="text-[9px]">CNPJ: {empCnpj}</p></div></div><div className="text-right"><h2 className="font-bold text-sm uppercase">Recibo de Pagamento</h2><p className="text-[10px] font-bold">{date(data.startDate)} a {date(data.endDate)}</p></div></div>
+        <div className="border-b border-black pb-2 flex justify-between items-end"><div className="flex items-center gap-3">{empLogo && <img src={empLogo} alt="Logo" className="h-8 w-auto mix-blend-multiply filter grayscale" />}<div><h1 className="font-bold text-sm uppercase">{empName}</h1><p className="text-[9px]">CNPJ: {empCnpj}</p></div></div><div className="text-right"><h2 className="font-bold text-sm uppercase">Recibo de Pagamento</h2><p className="text-[10px] font-bold">{date(data.startDate)} a {date(data.endDate)}</p><span className="text-[8px] uppercase border border-black px-1 rounded">{type}</span></div></div>
         <div className="grid grid-cols-12 gap-1 border-b border-black py-1"><div className="col-span-8"><span className="text-[9px] block text-gray-500 uppercase">Funcionário</span><span className="font-bold uppercase">{item.name}</span></div><div className="col-span-4 text-right"><span className="text-[9px] block text-gray-500 uppercase">Cargo</span><span className="font-bold uppercase">{item.role}</span></div></div>
         <div className="flex-1 mt-1"><div className="grid grid-cols-[30px_1fr_40px_60px_60px] border-b border-black font-bold bg-gray-100 text-[9px] text-center uppercase"><div className="border-r border-black">Cód</div><div className="border-r border-black text-left pl-1">Descrição</div><div className="border-r border-black">Ref</div><div className="border-r border-black">Venc.</div><div>Desc.</div></div>
           <div className="text-[10px]">
