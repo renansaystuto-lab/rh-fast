@@ -31,7 +31,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- UI COMPONENTS ---
+// --- UI COMPONENTS (DARK THEME) ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-slate-800 rounded-2xl shadow-xl border border-slate-700 p-6 transition-all duration-300 ${onClick ? 'cursor-pointer hover:bg-slate-750 hover:border-slate-600 hover:-translate-y-1 active:scale-95' : ''} ${className}`}>
     {children}
@@ -63,7 +63,7 @@ const Badge = ({ children, color = "blue" }) => {
   return <span className={`${colors[color]} border px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider`}>{children}</span>;
 };
 
-// --- LOGIN SCREEN ---
+// --- LOGIN SCREEN (DARK MODE) ---
 function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -437,12 +437,12 @@ function HoleriteView({ data, onBack, companyData }) {
     const genericDiscount = (item.discount || 0) - totalAdvances;
     
     return (
-      <div className="border-2 border-black p-4 h-[13cm] relative flex flex-col justify-between text-xs font-sans text-black bg-white">
+      <div className="border-2 border-black p-3 h-[11.5cm] relative flex flex-col justify-between text-xs font-sans text-black bg-white">
         <div className="border-b border-black pb-2 flex justify-between items-end"><div className="flex items-center gap-3">{empLogo && <img src={empLogo} alt="Logo" className="h-8 w-auto mix-blend-multiply filter grayscale" />}<div><h1 className="font-bold text-sm uppercase">{empName}</h1><p className="text-[9px]">CNPJ: {empCnpj}</p></div></div><div className="text-right"><h2 className="font-bold text-sm uppercase">Recibo de Pagamento</h2><p className="text-[10px] font-bold">{date(data.startDate)} a {date(data.endDate)}</p><span className="text-[8px] uppercase border border-black px-1 rounded">{type}</span></div></div>
         <div className="grid grid-cols-12 gap-1 border-b border-black py-1"><div className="col-span-8"><span className="text-[9px] block text-gray-500 uppercase">Funcionário</span><span className="font-bold uppercase">{item.name}</span></div><div className="col-span-4 text-right"><span className="text-[9px] block text-gray-500 uppercase">Cargo</span><span className="font-bold uppercase">{item.role}</span></div></div>
         <div className="flex-1 mt-1"><div className="grid grid-cols-[30px_1fr_40px_60px_60px] border-b border-black font-bold bg-gray-100 text-[9px] text-center uppercase"><div className="border-r border-black">Cód</div><div className="border-r border-black text-left pl-1">Descrição</div><div className="border-r border-black">Ref</div><div className="border-r border-black">Venc.</div><div>Desc.</div></div>
           <div className="text-[10px]">
-             <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">001</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Salário Base / Diárias</div><div className="text-center border-r border-dashed border-gray-300">{item.daysWorked}d</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.grossTotal)}</div><div className="text-right pr-1"></div></div>
+             <div className="grid grid-cols-[30px_1fr_40px_60px_60px] min-h-[160px]"><div className="text-center border-r border-dashed border-gray-300">001</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Salário Base / Diárias</div><div className="text-center border-r border-dashed border-gray-300">{item.daysWorked}d</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.grossTotal)}</div><div className="text-right pr-1"></div></div>
              {(item.overtime||0)>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">002</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Horas Extras</div><div className="text-center border-r border-dashed border-gray-300">{item.overtimeHours}h</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.overtime)}</div><div className="text-right pr-1"></div></div>}
              {(item.bonus||0)>0 && <div className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">003</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Bônus / Acréscimos</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1">{money(item.bonus)}</div><div className="text-right pr-1"></div></div>}
              {(item.advancesIncluded||[]).map((adv,i)=>(<div key={i} className="grid grid-cols-[30px_1fr_40px_60px_60px]"><div className="text-center border-r border-dashed border-gray-300">05{i}</div><div className="pl-1 border-r border-dashed border-gray-300 uppercase">Adiantamento ({adv.description||'Vale'})</div><div className="text-center border-r border-dashed border-gray-300">-</div><div className="text-right border-r border-dashed border-gray-300 pr-1"></div><div className="text-right pr-1">{money(adv.value)}</div></div>))}
@@ -486,7 +486,7 @@ function HoleriteView({ data, onBack, companyData }) {
             {chunk[1] ? (
               <ReceiptCopy item={chunk[1]} type="" />
             ) : (
-              <div className="border-2 border-dashed border-gray-300 p-4 h-[13cm] flex items-center justify-center text-gray-400 font-bold text-xl bg-gray-50">
+              <div className="border-2 border-dashed border-gray-300 p-4 h-[11.5cm] flex items-center justify-center text-gray-400 font-bold text-xl bg-gray-50">
                 ESPAÇO RESERVADO (PÁGINA FINAL)
               </div>
             )}
