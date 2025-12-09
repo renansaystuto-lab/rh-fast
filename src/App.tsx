@@ -349,4 +349,4 @@ function HoleriteView({ data, onBack, companyData }) {
       <div className="print:w-full space-y-0">{data.items.map((item, index) => (<div key={index} className="print:break-after-page print:h-screen print:flex print:flex-col print:justify-between mb-8 bg-white p-8 print:p-0 shadow-xl print:shadow-none"><ReceiptCopy item={item} type="VIA DO COLABORADOR" /><div className="h-10 flex items-center justify-center relative print:my-2"><div className="w-full border-t-2 border-dashed border-gray-400 absolute"></div><Scissors className="bg-white text-gray-500 relative z-10 px-2 rotate-90" size={32} /></div><ReceiptCopy item={item} type="VIA DO EMPREGADOR" /></div>))}</div>
     </div>
   );
-}
+} 
